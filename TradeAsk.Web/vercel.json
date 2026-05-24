@@ -1,6 +1,6 @@
 {
   "buildCommand": "npm install && npx ng build --configuration production",
-  "outputDirectory": "dist/trade-ask.web/browser",
+  "outputDirectory": "dist/TradeAsk.Web/browser",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
