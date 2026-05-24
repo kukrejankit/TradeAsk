@@ -1,0 +1,112 @@
+<div class="min-h-screen flex flex-col items-center px-4 py-8">
+  <div class="w-full max-w-lg">
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">TradeAsk</h1>
+      <p class="text-gray-600 mt-2">Get construction & trade compliance answers from AI + expert review</p>
+    </div>
+
+    @if (!submitted()) {
+      <!-- Question Form -->
+      <form (ngSubmit)="submit()" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
+        <!-- Email -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Where should we send your answer?</label>
+          <input
+            type="email"
+            [ngModel]="email()"
+            (ngModelChange)="email.set($event)"
+            name="email"
+            placeholder="your@email.com"
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+          />
+        </div>
+
+        <!-- Category -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <select
+            [ngModel]="category()"
+            (ngModelChange)="category.set($event)"
+            name="category"
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none bg-white"
+          >
+            <option value="" disabled>Select a category...</option>
+            @for (cat of categories; track cat) {
+              <option [value]="cat">{{ cat }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Question -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Your question</label>
+          <textarea
+            [ngModel]="questionText()"
+            (ngModelChange)="questionText.set($event)"
+            name="questionText"
+            rows="4"
+            placeholder="Describe your question in detail. The more specific, the better. E.g. 'I'm installing a 20A circuit in a garage — does the receptacle need to be GFCI protected under NEC 2023?'"
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-y"
+          ></textarea>
+        </div>
+
+        <!-- File Upload -->
+        <div>
+          <div
+            (drop)="onDrop($event)"
+            (dragover)="onDragOver($event)"
+            class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-brand-500 transition-colors"
+            (click)="fileInput.click()"
+          >
+            @if (file) {
+              <p class="text-sm text-gray-700">{{ file.name }} ({{ (file.size / 1024 / 1024).toFixed(1) }}MB)</p>
+              <button type="button" (click)="removeFile(); $event.stopPropagation()" class="text-red-500 text-sm mt-1 hover:underline">Remove</button>
+            } @else {
+              <p class="text-gray-500">Attach a photo or document (optional) — Max 10MB</p>
+              <p class="text-xs text-gray-400 mt-1">Images (JPG, PNG, GIF, WebP) or PDF</p>
+            }
+          </div>
+          <input #fileInput type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf" (change)="onFileSelected($event)" class="hidden" />
+        </div>
+
+        <!-- Error -->
+        @if (error()) {
+          <p class="text-red-600 text-sm">{{ error() }}</p>
+        }
+
+        <!-- Submit -->
+        <button
+          type="submit"
+          [disabled]="submitting()"
+          class="w-full bg-gray-900 text-white py-3 rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          @if (submitting()) {
+            Submitting...
+          } @else {
+            Get My Answer
+          }
+        </button>
+      </form>
+
+      <p class="text-xs text-gray-400 text-center mt-4 px-4">
+        Your question will be answered by AI and reviewed by a construction professional within 1 hour.
+        Documents are processed securely and deleted after your question is answered.
+      </p>
+    } @else {
+      <!-- Success State -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h2 class="text-xl font-semibold text-gray-900 mb-2">Your question has been received!</h2>
+        <p class="text-gray-600 mb-6">We'll send your answer to <strong>{{ submittedEmail() }}</strong> within 1 hour.</p>
+        <button (click)="reset()" class="text-brand-600 hover:text-brand-700 font-medium hover:underline">
+          Ask another question
+        </button>
+      </div>
+    }
+  </div>
+</div>

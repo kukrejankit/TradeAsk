@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+*.db
+TradeAsk.API/uploads/*
+!TradeAsk.API/uploads/.gitkeep
+TradeAsk.API/documents/*
+!TradeAsk.API/documents/.gitkeep
+TradeAsk.Web/.angular/
+TradeAsk.Web/dist/
+TradeAsk.Mobile/.expo/
+*.js.map
+*.onnx
+*.db-shm
+*.db-wal

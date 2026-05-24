@@ -1,0 +1,226 @@
+@if (!isLoggedIn()) {
+  <!-- Login Screen -->
+  <div class="min-h-screen flex items-center justify-center px-4">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
+      <h2 class="text-2xl font-bold text-gray-900 text-center mb-6">TradeAsk Admin</h2>
+      <form (ngSubmit)="login()" class="space-y-4">
+        <div>
+          <input
+            type="email"
+            [ngModel]="loginEmail()"
+            (ngModelChange)="loginEmail.set($event)"
+            name="email"
+            placeholder="Email"
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+          />
+        </div>
+        <div>
+          <input
+            type="password"
+            [ngModel]="loginPassword()"
+            (ngModelChange)="loginPassword.set($event)"
+            name="password"
+            placeholder="Password"
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+          />
+        </div>
+        @if (loginError()) {
+          <p class="text-red-600 text-sm">{{ loginError() }}</p>
+        }
+        <button type="submit" class="w-full bg-gray-900 text-white py-2.5 rounded-lg font-medium hover:bg-gray-800">
+          Sign in
+        </button>
+      </form>
+    </div>
+  </div>
+} @else {
+  <!-- Dashboard -->
+  <div class="min-h-screen">
+    <!-- Top Bar -->
+    <header class="bg-white border-b border-gray-200 px-4 py-4">
+      <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <h1 class="text-xl font-bold text-gray-900">TradeAsk Admin</h1>
+        <button (click)="logout()" class="text-sm text-gray-500 hover:text-gray-700">Logout</button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="max-w-7xl mx-auto px-4 py-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-white rounded-lg border p-3 text-center">
+          <p class="text-2xl font-bold text-gray-900">{{ stats().total }}</p>
+          <p class="text-xs text-gray-500">Total</p>
+        </div>
+        <div class="bg-white rounded-lg border p-3 text-center">
+          <p class="text-2xl font-bold text-yellow-600">{{ stats().pending }}</p>
+          <p class="text-xs text-gray-500">Pending</p>
+        </div>
+        <div class="bg-white rounded-lg border p-3 text-center">
+          <p class="text-2xl font-bold text-green-600">{{ stats().answered }}</p>
+          <p class="text-xs text-gray-500">Answered</p>
+        </div>
+        <div class="bg-white rounded-lg border p-3 text-center">
+          <p class="text-2xl font-bold text-orange-600">{{ stats().correctionNeeded }}</p>
+          <p class="text-xs text-gray-500">Corrected</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    @if (toast()) {
+      <div class="fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+        {{ toast() }}
+      </div>
+    }
+
+    <div class="max-w-7xl mx-auto px-4 pb-8">
+      @if (!selectedQuestion()) {
+        <!-- Question List -->
+        <div class="flex gap-2 mb-4 flex-wrap">
+          @for (f of ['all', 'pending', 'answered', 'escalated']; track f) {
+            <button
+              (click)="setFilter(f)"
+              [class]="activeFilter() === f ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 border border-gray-300'"
+              class="px-4 py-1.5 rounded-full text-sm font-medium capitalize"
+            >
+              {{ f }}
+            </button>
+          }
+        </div>
+
+        @if (loading()) {
+          <p class="text-gray-500 text-center py-8">Loading...</p>
+        } @else if (questions().length === 0) {
+          <p class="text-gray-500 text-center py-8">No questions found.</p>
+        } @else {
+          <div class="space-y-2">
+            @for (q of questions(); track q.id) {
+              <div
+                (click)="selectQuestion(q)"
+                class="bg-white rounded-lg border border-gray-200 p-4 cursor-pointer hover:border-brand-500 transition-colors"
+              >
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-xs text-gray-400">{{ timeAgo(q.created_at) }}</span>
+                  <span
+                    class="text-xs px-2 py-0.5 rounded-full font-medium capitalize"
+                    [class.bg-yellow-100]="q.status === 'pending'"
+                    [class.text-yellow-800]="q.status === 'pending'"
+                    [class.bg-green-100]="q.status === 'answered'"
+                    [class.text-green-800]="q.status === 'answered'"
+                    [class.bg-orange-100]="q.status === 'escalated'"
+                    [class.text-orange-800]="q.status === 'escalated'"
+                  >{{ q.status }}</span>
+                </div>
+                <p class="text-xs text-brand-600 font-medium mb-1">{{ q.category }}</p>
+                <p class="text-sm text-gray-700 line-clamp-2">{{ q.question_text.substring(0, 100) }}{{ q.question_text.length > 100 ? '...' : '' }}</p>
+              </div>
+            }
+          </div>
+        }
+      } @else {
+        <!-- Question Detail -->
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+          <button (click)="back()" class="text-sm text-gray-500 hover:text-gray-700 mb-4">&larr; Back to list</button>
+
+          <div class="mb-4">
+            <span class="text-xs text-gray-400">{{ timeAgo(selectedQuestion()!.created_at) }} &middot; {{ selectedQuestion()!.user_email }}</span>
+            <p class="text-xs text-brand-600 font-medium mt-1">{{ selectedQuestion()!.category }}</p>
+          </div>
+
+          <div class="mb-6">
+            <h3 class="text-sm font-medium text-gray-500 mb-1">Question</h3>
+            <p class="text-gray-900">{{ selectedQuestion()!.question_text }}</p>
+          </div>
+
+          @if (selectedQuestion()!.file_path) {
+            <div class="mb-6">
+              <h3 class="text-sm font-medium text-gray-500 mb-1">Attachment</h3>
+              @if (selectedQuestion()!.file_type?.startsWith('image/')) {
+                <img [src]="getFileUrl(selectedQuestion()!.file_path!)" class="max-w-sm rounded-lg border" alt="Attachment" />
+              } @else {
+                <a [href]="getFileUrl(selectedQuestion()!.file_path!)" target="_blank" class="text-brand-600 hover:underline text-sm">
+                  Download PDF
+                </a>
+              }
+            </div>
+          }
+
+          @if (selectedQuestion()!.claude_answer) {
+            <div class="mb-6 bg-gray-50 rounded-lg p-4 border">
+              <h3 class="text-sm font-medium text-gray-500 mb-2">AI Answer — Review Before Sending</h3>
+              <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ selectedQuestion()!.claude_answer }}</p>
+            </div>
+          }
+
+          @if (selectedQuestion()!.status === 'pending' || selectedQuestion()!.status === 'escalated') {
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Final Answer (edit before sending)</label>
+                <textarea
+                  [ngModel]="editAnswer()"
+                  (ngModelChange)="editAnswer.set($event)"
+                  name="editAnswer"
+                  rows="8"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none resize-y text-sm"
+                ></textarea>
+              </div>
+
+              <div class="flex flex-col gap-2">
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" [ngModel]="correctionNeeded()" (ngModelChange)="correctionNeeded.set($event)" name="correction" class="rounded" />
+                  Claude's answer needed correction
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" [ngModel]="addedToKb()" (ngModelChange)="addedToKb.set($event)" name="kb" class="rounded" />
+                  Add to knowledge base
+                </label>
+              </div>
+
+              @if (correctionNeeded()) {
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Correction notes</label>
+                  <textarea
+                    [ngModel]="correctionNotes()"
+                    (ngModelChange)="correctionNotes.set($event)"
+                    name="correctionNotes"
+                    rows="2"
+                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none resize-y text-sm"
+                  ></textarea>
+                </div>
+              }
+
+              <div class="flex gap-3 pt-2">
+                <button
+                  (click)="approve()"
+                  [disabled]="!editAnswer() || loading()"
+                  class="bg-green-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"
+                >
+                  Approve & Send Email
+                </button>
+                <button
+                  (click)="escalate()"
+                  class="bg-yellow-500 text-white px-5 py-2 rounded-lg font-medium hover:bg-yellow-600"
+                >
+                  Escalate
+                </button>
+                <button
+                  (click)="back()"
+                  class="bg-gray-200 text-gray-700 px-5 py-2 rounded-lg font-medium hover:bg-gray-300"
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          } @else {
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+              <p class="text-sm text-green-800 font-medium">This question has been answered.</p>
+              @if (selectedQuestion()!.final_answer) {
+                <p class="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{{ selectedQuestion()!.final_answer }}</p>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}

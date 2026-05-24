@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(winget --version)",
+      "PowerShell(docker --version)",
+      "PowerShell(winget install Oracle.MySQL -e --accept-package-agreements --accept-source-agreements)",
+      "PowerShell(choco --version)",
+      "PowerShell(mysql --version)",
+      "PowerShell(node c:\\\\Projects\\\\TradeAsk\\\\TradeAsk.API\\\\run-schema.js)",
+      "Bash(npx ng *)"
+    ]
+  }
+}

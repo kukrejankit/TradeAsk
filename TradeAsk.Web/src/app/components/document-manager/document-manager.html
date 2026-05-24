@@ -1,0 +1,138 @@
+<div style="max-width: 1200px; margin: 0 auto; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+  <!-- Header -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <h1 style="font-size: 24px; font-weight: bold;">Knowledge Base Documents</h1>
+    <button (click)="goToAdmin()" style="padding: 8px 16px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer;">
+      &larr; Back to Dashboard
+    </button>
+  </div>
+
+  <!-- Stats -->
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+    <div style="text-align: center; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <div style="font-size: 24px; font-weight: bold;">{{ stats().totalDocs || 0 }}</div>
+      <div style="color: #6b7280; font-size: 14px;">Total Docs</div>
+    </div>
+    <div style="text-align: center; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <div style="font-size: 24px; font-weight: bold; color: #16a34a;">{{ stats().readyDocs || 0 }}</div>
+      <div style="color: #6b7280; font-size: 14px;">Ready</div>
+    </div>
+    <div style="text-align: center; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">{{ stats().processingDocs || 0 }}</div>
+      <div style="color: #6b7280; font-size: 14px;">Processing</div>
+    </div>
+    <div style="text-align: center; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <div style="font-size: 24px; font-weight: bold;">{{ stats().totalChunks || 0 }}</div>
+      <div style="color: #6b7280; font-size: 14px;">Total Chunks</div>
+    </div>
+  </div>
+
+  <!-- Upload Section -->
+  <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-bottom: 24px; background: #f9fafb;">
+    <h2 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">Upload Reference Document</h2>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div>
+        <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Title (optional)</label>
+        <input type="text" [value]="docTitle()" (input)="docTitle.set($any($event.target).value)"
+               placeholder="e.g. NEC 2023 Code Book"
+               style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box;">
+      </div>
+      <div>
+        <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Category</label>
+        <select [value]="docCategory()" (change)="docCategory.set($any($event.target).value)"
+                style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box;">
+          <option value="">-- Select category --</option>
+          @for (cat of categories; track cat) {
+            <option [value]="cat">{{ cat }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Description (optional)</label>
+      <input type="text" [value]="docDescription()" (input)="docDescription.set($any($event.target).value)"
+             placeholder="Brief description of this document"
+             style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box;">
+    </div>
+
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">File</label>
+      <input type="file" (change)="onFileSelected($event)" accept=".pdf,.docx,.txt,.jpg,.jpeg,.png"
+             style="padding: 8px 0;">
+      <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+        Supported: PDF, DOCX, TXT, JPG, PNG — Max 50MB
+      </div>
+    </div>
+
+    @if (uploadError()) {
+      <div style="color: #dc2626; font-size: 14px; margin-bottom: 12px;">{{ uploadError() }}</div>
+    }
+
+    <button (click)="upload()" [disabled]="uploading() || !selectedFile()"
+            style="padding: 10px 24px; background: #1d4ed8; color: white; border: none; border-radius: 6px; font-weight: 500; cursor: pointer; opacity: {{uploading() || !selectedFile() ? '0.5' : '1'}};">
+      {{ uploading() ? 'Uploading...' : 'Upload & Process' }}
+    </button>
+  </div>
+
+  <!-- Documents List -->
+  <div style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+    <table style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f9fafb;">
+          <th style="text-align: left; padding: 12px 16px; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Document</th>
+          <th style="text-align: left; padding: 12px 16px; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Category</th>
+          <th style="text-align: center; padding: 12px 16px; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Status</th>
+          <th style="text-align: center; padding: 12px 16px; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Chunks</th>
+          <th style="text-align: center; padding: 12px 16px; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Size</th>
+          <th style="text-align: right; padding: 12px 16px; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (doc of documents(); track doc.id) {
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 12px 16px;">
+              <div style="font-weight: 500;">{{ doc.title || doc.filename }}</div>
+              @if (doc.title) {
+                <div style="font-size: 12px; color: #6b7280;">{{ doc.filename }}</div>
+              }
+            </td>
+            <td style="padding: 12px 16px; font-size: 14px;">{{ doc.category || '—' }}</td>
+            <td style="padding: 12px 16px; text-align: center;">
+              @if (doc.status === 'ready') {
+                <span style="padding: 2px 8px; background: #dcfce7; color: #16a34a; border-radius: 12px; font-size: 12px; font-weight: 500;">Ready</span>
+              } @else if (doc.status === 'processing' || doc.status === 'pending') {
+                <span style="padding: 2px 8px; background: #fef3c7; color: #d97706; border-radius: 12px; font-size: 12px; font-weight: 500;">Processing...</span>
+              } @else if (doc.status === 'error') {
+                <span style="padding: 2px 8px; background: #fee2e2; color: #dc2626; border-radius: 12px; font-size: 12px; font-weight: 500;" [title]="doc.error_message">Error</span>
+              }
+            </td>
+            <td style="padding: 12px 16px; text-align: center; font-size: 14px;">{{ doc.total_chunks }}</td>
+            <td style="padding: 12px 16px; text-align: center; font-size: 14px;">{{ formatSize(doc.file_size) }}</td>
+            <td style="padding: 12px 16px; text-align: right;">
+              @if (doc.status === 'error') {
+                <button (click)="reprocess(doc)" style="padding: 4px 10px; background: #f59e0b; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; margin-right: 8px;">Retry</button>
+              }
+              <button (click)="deleteDoc(doc)" style="padding: 4px 10px; background: #dc2626; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">Delete</button>
+            </td>
+          </tr>
+        }
+        @if (documents().length === 0) {
+          <tr>
+            <td colspan="6" style="padding: 32px; text-align: center; color: #6b7280;">
+              No documents uploaded yet. Upload your first reference document above.
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Toast -->
+  @if (toast()) {
+    <div style="position: fixed; bottom: 24px; right: 24px; padding: 12px 24px; background: #1f2937; color: white; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+      {{ toast() }}
+    </div>
+  }
+</div>
