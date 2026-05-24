@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://tradeask-production.up.railway.app/api',
+  apiUrl: 'https://api.tradeask.app/api',
   firebase: {
     apiKey: '',
     authDomain: '',
