@@ -14,7 +14,7 @@ const app = express();
 
 app.use(helmet());
 const allowedOrigins = config.nodeEnv === 'production'
-  ? ['https://tradeask.app', 'https://www.tradeask.app']
+  ? ['https://tradeask.app', 'https://www.tradeask.app', /\.vercel\.app$/]
   : true;
 
 app.use(cors({
