@@ -43,22 +43,23 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/reset-admin', async (_req, res) => {
+app.get('/api/reset-admin', (_req, res) => {
   try {
-    const { hashPassword } = await import('./services/authService');
-    const { update, insert, queryOne } = await import('./models/database');
+    const bcrypt = require('bcryptjs');
+    const db = require('./models/database');
     const email = 'ankit.kukreja.89@gmail.com';
     const password = 'TradeAsk2024!';
-    const hash = hashPassword(password);
-    const existing = await queryOne<any>('SELECT id FROM admin_users WHERE email = ?', [email]);
+    const hash = bcrypt.hashSync(password, 10);
+    const database = db.getDb();
+    const existing = database.prepare('SELECT id FROM admin_users WHERE email = ?').get(email);
     if (existing) {
-      await update('UPDATE admin_users SET password_hash = ?, status = ? WHERE id = ?', [hash, 'approved', existing.id]);
-      res.json({ message: 'Admin updated', email, password });
+      database.prepare("UPDATE admin_users SET password_hash = ?, status = 'approved' WHERE id = ?").run(hash, existing.id);
+      res.json({ message: 'Admin updated', email });
     } else {
-      const id = await insert("INSERT INTO admin_users (email, password_hash, name, status) VALUES (?, ?, ?, 'approved')", [email, hash, 'Ankit']);
-      res.json({ message: 'Admin created', email, password, id });
+      const result = database.prepare("INSERT INTO admin_users (email, password_hash, name, status) VALUES (?, ?, ?, 'approved')").run(email, hash, 'Ankit');
+      res.json({ message: 'Admin created', email, id: result.lastInsertRowid });
     }
-  } catch (error: any) { res.status(500).json({ error: error.message }); }
+  } catch (error: any) { res.json({ error: error.message, stack: error.stack }); }
 });
 
 
