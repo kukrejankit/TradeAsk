@@ -106,8 +106,9 @@ router.post('/message', upload.single('file'), async (req: Request, res: Respons
     }
 
     // Detect if this is a clarifying question (not a real answer)
+    // A real answer contains the AHJ disclaimer. If it's missing, it's a clarification.
     const trimmed = fullResponse.trim();
-    const isClarification = trimmed.endsWith('?') && trimmed.length < 300 && !trimmed.includes('Always verify critical compliance');
+    const isClarification = !trimmed.includes('Always verify critical compliance') && !trimmed.includes('local AHJ');
 
     // Save AI response
     const messageType = isClarification ? 'clarification' : 'answer';

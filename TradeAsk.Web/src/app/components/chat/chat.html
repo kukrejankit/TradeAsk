@@ -1,4 +1,4 @@
-<div class="h-screen flex flex-col bg-white">
+<div class="flex flex-col bg-white" style="height: 100dvh;">
   @if (!isIdentified()) {
     <!-- Identity Step -->
     <div class="flex-1 flex items-center justify-center px-4">
@@ -168,8 +168,17 @@
                 </div>
               </div>
             } @else if (msg.role === 'system') {
-              <div class="flex justify-center">
+              <div class="flex flex-col items-center gap-3">
                 <p class="text-xs text-gray-500 bg-yellow-50 border border-yellow-100 rounded-lg px-3 py-2 max-w-[90%] text-center">{{ msg.content }}</p>
+                <!-- Action buttons after review note -->
+                <div class="flex gap-2">
+                  <button (click)="changeQuestion()" class="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                    Change my question
+                  </button>
+                  <button (click)="newSession()" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700">
+                    New question
+                  </button>
+                </div>
               </div>
             }
           }
@@ -192,7 +201,7 @@
         }
 
         <!-- Input bar -->
-        <div class="border-t border-gray-200 px-4 py-3 bg-white">
+        <div class="border-t border-gray-200 px-4 py-3 bg-white flex-shrink-0">
           @if (file) {
             <div class="flex items-center gap-2 mb-2 text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg">
               <span>📎 {{ file.name }}</span>
