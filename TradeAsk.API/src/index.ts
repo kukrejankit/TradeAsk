@@ -43,24 +43,6 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/reset-admin', (_req, res) => {
-  try {
-    const bcrypt = require('bcryptjs');
-    const db = require('./models/database');
-    const database = db.getDb();
-    const email = 'ankit.kukreja.89@gmail.com';
-    const password = 'TradeAsk2024!';
-    const hash = bcrypt.hashSync(password, 10);
-    const existing = database.prepare('SELECT id FROM admin_users WHERE email = ?').get(email);
-    if (existing) {
-      database.prepare("UPDATE admin_users SET password_hash = ?, role = 'super_admin', status = 'approved' WHERE id = ?").run(hash, existing.id);
-      res.json({ message: 'Password reset + role set to super_admin', email });
-    } else {
-      database.prepare("INSERT INTO admin_users (email, password_hash, name, role, status) VALUES (?, ?, ?, 'super_admin', 'approved')").run(email, hash, 'Ankit');
-      res.json({ message: 'Admin created as super_admin', email });
-    }
-  } catch (error: any) { res.json({ error: error.message }); }
-});
 
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
