@@ -17,6 +17,7 @@ export class AdminDashboard implements OnInit {
   loginPassword = signal('');
   loginError = signal('');
   showSignup = signal(false);
+  showPassword = signal(false);
   signupName = signal('');
   signupEmail = signal('');
   signupPassword = signal('');
@@ -76,7 +77,7 @@ export class AdminDashboard implements OnInit {
       });
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user') {
-        this.loginError.set('Google sign-in failed. Please try again.');
+        this.loginError.set(err.message || err.code || 'Google sign-in failed. Please try again.');
       }
     }
   }

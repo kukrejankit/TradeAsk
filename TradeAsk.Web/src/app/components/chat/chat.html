@@ -99,28 +99,54 @@
       <!-- Main chat area -->
       <div class="flex-1 flex flex-col">
         <!-- Chat header -->
-        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white">
+        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white flex-shrink-0">
           <div class="flex items-center gap-3">
-            <button (click)="showSidebar.set(!showSidebar())" class="md:hidden text-gray-500">☰</button>
-            <h2 class="font-semibold text-gray-900 text-sm">
-              @if (currentSessionId()) {
-                {{ selectedCategory() || 'TradeAsk' }}
-              } @else {
-                New conversation
-              }
-            </h2>
+            <button (click)="showSidebar.set(!showSidebar())" class="md:hidden text-gray-500 text-lg">☰</button>
+            <div>
+              <h2 class="font-semibold text-gray-900 text-sm">
+                @if (currentSessionId()) {
+                  {{ selectedCategory() || 'TradeAsk' }}
+                } @else {
+                  New conversation
+                }
+              </h2>
+              <p class="text-xs text-gray-400">{{ userEmail() }}</p>
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            @if (hasAnswer() && !isStreaming()) {
-              <button (click)="changeQuestion()" class="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">
-                Change my question
-              </button>
-              <button (click)="newSession()" class="text-xs text-brand-600 hover:text-brand-700 px-2 py-1 rounded hover:bg-blue-50">
-                New question
-              </button>
-            }
-          </div>
+          <button (click)="logout()" class="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-50">
+            Change account
+          </button>
         </div>
+
+        <!-- Mobile sidebar overlay -->
+        @if (showSidebar()) {
+          <div class="md:hidden absolute inset-0 z-50 flex">
+            <div class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-lg">
+              <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                <span class="font-semibold text-sm">My sessions</span>
+                <button (click)="showSidebar.set(false)" class="text-gray-500 text-lg">✕</button>
+              </div>
+              <div class="p-3">
+                <button (click)="newSession(); showSidebar.set(false)" class="w-full bg-brand-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-brand-700 mb-3">
+                  + New question
+                </button>
+              </div>
+              <div class="flex-1 overflow-y-auto p-2">
+                @for (s of sessions(); track s.id) {
+                  <button
+                    (click)="loadSession(s.id); showSidebar.set(false)"
+                    [class]="currentSessionId() === s.id ? 'bg-blue-50 border-brand-500' : 'bg-transparent border-transparent hover:bg-gray-50'"
+                    class="w-full text-left p-3 rounded-lg border mb-1"
+                  >
+                    <p class="text-xs font-medium text-brand-600">{{ s.category }}</p>
+                    <p class="text-xs text-gray-500 mt-0.5">{{ s.updated_at | slice:0:10 }}</p>
+                  </button>
+                }
+              </div>
+            </div>
+            <div (click)="showSidebar.set(false)" class="flex-1 bg-black bg-opacity-30"></div>
+          </div>
+        }
 
         <!-- Messages -->
         <div #messagesContainer class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
@@ -208,13 +234,20 @@
               <button (click)="removeFile()" class="text-red-500 hover:text-red-700 ml-auto">✕</button>
             </div>
           }
-          <div class="flex items-end gap-2">
-            <button (click)="fileInput.click()" class="text-gray-400 hover:text-gray-600 p-2" [disabled]="isStreaming()">
-              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-              </svg>
+          <!-- Attachment buttons -->
+          <div class="flex items-center gap-1 mb-2">
+            <button (click)="cameraInput.click()" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-gray-100" [disabled]="isStreaming()">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              Camera
             </button>
-            <input #fileInput type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf" (change)="onFileSelected($event)" class="hidden" />
+            <button (click)="fileInput.click()" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-gray-100" [disabled]="isStreaming()">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+              Upload file
+            </button>
+          </div>
+          <input #cameraInput type="file" accept="image/*" capture="environment" (change)="onFileSelected($event)" class="hidden" />
+          <input #fileInput type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf" (change)="onFileSelected($event)" class="hidden" />
+          <div class="flex items-end gap-2">
             <textarea
               [ngModel]="inputText()"
               (ngModelChange)="inputText.set($event)"

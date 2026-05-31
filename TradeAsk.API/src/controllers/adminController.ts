@@ -249,7 +249,8 @@ router.put('/questions/:id/approve', requireAuth, async (req: AuthRequest, res: 
       question.question_text,
       question.category,
       finalAnswer,
-      chatLink
+      chatLink,
+      correctionNeeded || false
     );
 
     if (emailSent) {

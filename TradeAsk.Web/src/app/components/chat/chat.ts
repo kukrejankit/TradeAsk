@@ -252,6 +252,17 @@ export class Chat implements OnInit, AfterViewChecked {
     this.streamingText.set('');
   }
 
+  logout() {
+    localStorage.removeItem('tradeask_session_token');
+    localStorage.removeItem('tradeask_email');
+    this.isIdentified.set(false);
+    this.userEmail.set('');
+    this.selectedCategory.set('');
+    this.currentSessionId.set(null);
+    this.messages.set([]);
+    this.sessions.set([]);
+  }
+
   onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {

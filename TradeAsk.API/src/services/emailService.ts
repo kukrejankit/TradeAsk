@@ -1,12 +1,47 @@
 import sgMail from '@sendgrid/mail';
 import { config } from '../config/env';
 
+const LOGO_URL = 'https://tradeask.app/assets/logo-email.png';
+
+function emailWrapper(content: string): string {
+  return `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+  <!-- Header with logo -->
+  <div style="background: #0c4a6e; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+    <table cellpadding="0" cellspacing="0" border="0"><tr>
+      <td style="vertical-align: middle;">
+        <div style="width: 36px; height: 36px; background: #ffffff; border-radius: 8px; display: inline-block; text-align: center; line-height: 36px;">
+          <span style="font-size: 18px; font-weight: bold; color: #0c4a6e;">T</span>
+        </div>
+      </td>
+      <td style="vertical-align: middle; padding-left: 12px;">
+        <span style="color: #ffffff; font-size: 20px; font-weight: 700; letter-spacing: -0.5px;">TradeAsk</span>
+      </td>
+    </tr></table>
+  </div>
+
+  <!-- Body -->
+  <div style="padding: 32px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    ${content}
+  </div>
+
+  <!-- Footer -->
+  <div style="padding: 20px 32px; text-align: center;">
+    <p style="font-size: 12px; color: #9ca3af; margin: 0;">
+      TradeAsk — AI-powered compliance answers verified by industry experts<br>
+      <a href="https://tradeask.app" style="color: #0284c7; text-decoration: none;">tradeask.app</a>
+    </p>
+  </div>
+</div>`;
+}
+
 export async function sendAnswerEmail(
   toEmail: string,
   questionText: string,
   category: string,
   finalAnswer: string,
-  chatLink?: string
+  chatLink?: string,
+  wasCorrected?: boolean
 ): Promise<boolean> {
   if (!config.sendgrid.apiKey) {
     console.warn('SendGrid API key not configured — skipping email');
@@ -15,44 +50,47 @@ export async function sendAnswerEmail(
 
   sgMail.setApiKey(config.sendgrid.apiKey);
 
-  const htmlBody = `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <h2 style="color: #1a1a1a;">Your TradeAsk question — answered ✓</h2>
-  <p>Hi,</p>
-  <p>Here's the answer to your construction/trade question:</p>
+  const reviewMessage = wasCorrected
+    ? 'An industry expert has reviewed and <strong>corrected</strong> the AI-generated response to your question. The updated answer is below.'
+    : 'An industry expert has reviewed and <strong>approved</strong> the AI-generated answer to your question.';
 
-  <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
-    <p style="font-weight: bold; color: #555;">YOUR QUESTION:</p>
-    <p>${escapeHtml(questionText)}</p>
-    <p style="font-weight: bold; color: #555; margin-top: 16px;">CATEGORY: ${escapeHtml(category)}</p>
-  </div>
+  const content = `
+    <h2 style="color: #111827; font-size: 20px; margin: 0 0 8px 0;">Your answer is ready</h2>
+    <p style="color: #6b7280; font-size: 14px; margin: 0 0 24px 0;">${reviewMessage}</p>
 
-  <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0; background: #f9f9f9;">
-    <p style="font-weight: bold; color: #555;">ANSWER:</p>
-    <div>${escapeHtml(finalAnswer).replace(/\n/g, '<br>')}</div>
-  </div>
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+      <p style="font-size: 12px; font-weight: 600; color: #0284c7; text-transform: uppercase; margin: 0 0 6px 0;">${escapeHtml(category)}</p>
+      <p style="color: #111827; font-size: 14px; margin: 0;">${escapeHtml(questionText)}</p>
+    </div>
 
-  <p style="font-size: 14px; color: #666;">
-    This answer was reviewed by a construction industry professional before being sent to you.
-  </p>
+    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+      <div style="display: flex; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 11px; font-weight: 600; color: #166534; background: #dcfce7; padding: 2px 8px; border-radius: 10px;">✓ Expert ${wasCorrected ? 'corrected' : 'verified'}</span>
+      </div>
+      <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0;">${escapeHtml(finalAnswer).replace(/\n/g, '<br>')}</p>
+    </div>
 
-  ${chatLink ? `<div style="margin: 20px 0;">
-    <a href="${chatLink}" style="background: #0284c7; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">View in chat &rarr;</a>
-  </div>
-  <p style="font-size: 14px; color: #666;">You can ask follow-up questions in your chat session.</p>` : `<p>Have another question? Visit <a href="https://tradeask.app">https://tradeask.app</a></p>`}
+    ${chatLink ? `
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${chatLink}" style="background: #0c4a6e; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">View in chat →</a>
+    </div>
+    <p style="text-align: center; font-size: 13px; color: #6b7280;">Continue the conversation or ask a follow-up question</p>
+    ` : `
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="https://tradeask.app/ask" style="background: #0c4a6e; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">Ask another question →</a>
+    </div>
+    `}
+  `;
 
-  <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
-  <p style="font-size: 12px; color: #999;">
-    TradeAsk | AI-powered compliance answers for field professionals<br>
-    You received this because you submitted a question at tradeask.app
-  </p>
-</div>`;
+  const subject = wasCorrected
+    ? 'Your TradeAsk question — expert-corrected answer ready'
+    : 'Your TradeAsk question — expert-verified answer ready';
 
   const msg = {
     to: toEmail,
     from: { email: config.sendgrid.fromEmail, name: config.sendgrid.fromName },
-    subject: 'Your TradeAsk question — answered ✓',
-    html: htmlBody,
+    subject,
+    html: emailWrapper(content),
   };
 
   try {
@@ -73,31 +111,27 @@ export async function sendExpertApprovalEmail(toEmail: string, name: string): Pr
 
   sgMail.setApiKey(config.sendgrid.apiKey);
 
-  const htmlBody = `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <h2 style="color: #1a1a1a;">Welcome to TradeAsk, ${escapeHtml(name)}!</h2>
-  <p>Great news — your expert account has been approved.</p>
-  <p>You can now log in and start answering questions in your area of expertise. Your knowledge helps tradespeople get accurate, verified answers.</p>
+  const content = `
+    <h2 style="color: #111827; font-size: 20px; margin: 0 0 8px 0;">Welcome aboard, ${escapeHtml(name)}!</h2>
+    <p style="color: #6b7280; font-size: 14px; margin: 0 0 24px 0;">Your expert account has been approved. You can now help tradespeople get accurate, verified answers.</p>
 
-  <div style="margin: 24px 0;">
-    <a href="https://tradeask.app/admin" style="background: #0284c7; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">Start answering questions →</a>
-  </div>
+    <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+      <p style="color: #0c4a6e; font-size: 14px; margin: 0 0 8px 0; font-weight: 600;">How it works:</p>
+      <p style="color: #374151; font-size: 14px; margin: 0; line-height: 1.6;">
+        Questions come in from tradespeople. AI generates a first draft. You review, edit if needed, and approve. The verified answer gets sent to the person who asked.
+      </p>
+    </div>
 
-  <p style="font-size: 14px; color: #666;">
-    Questions are reviewed by AI first, then sent to experts like you for verification. You'll see the AI draft and can approve, edit, or replace it.
-  </p>
-
-  <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
-  <p style="font-size: 12px; color: #999;">
-    TradeAsk | AI-powered compliance answers for field professionals
-  </p>
-</div>`;
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="https://tradeask.app/admin" style="background: #0c4a6e; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">Start answering questions →</a>
+    </div>
+  `;
 
   const msg = {
     to: toEmail,
     from: { email: config.sendgrid.fromEmail, name: config.sendgrid.fromName },
-    subject: 'Your TradeAsk expert account is approved ✓',
-    html: htmlBody,
+    subject: 'Welcome to TradeAsk — your expert account is live',
+    html: emailWrapper(content),
   };
 
   try {
