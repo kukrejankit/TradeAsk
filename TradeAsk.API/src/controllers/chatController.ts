@@ -105,25 +105,41 @@ router.post('/message', upload.single('file'), async (req: Request, res: Respons
       res.write(`event: error\ndata: ${JSON.stringify({ message: errorMsg })}\n\n`);
     }
 
-    // Save AI response
-    const aiMsgResult = db.prepare(
-      "INSERT INTO chat_messages (session_id, role, content, message_type) VALUES (?, 'assistant', ?, 'answer')"
-    ).run(session.id, fullResponse);
+    // Detect if this is a clarifying question (not a real answer)
+    const trimmed = fullResponse.trim();
+    const isClarification = trimmed.endsWith('?') && trimmed.length < 300 && !trimmed.includes('Always verify critical compliance');
 
-    // Create question record for expert review queue
-    const questionResult = db.prepare(
-      "INSERT INTO questions (user_email, category, question_text, file_path, file_type, claude_answer, status, session_id, chat_message_id) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)"
-    ).run(session.user_email, session.category, content, filePath, fileType, fullResponse, session.id, aiMsgResult.lastInsertRowid);
+    // Save AI response
+    const messageType = isClarification ? 'clarification' : 'answer';
+    const aiMsgResult = db.prepare(
+      "INSERT INTO chat_messages (session_id, role, content, message_type) VALUES (?, 'assistant', ?, ?)"
+    ).run(session.id, fullResponse, messageType);
+
+    // Only create question for expert review if it's a real answer (not clarification)
+    let questionId = null;
+    if (!isClarification) {
+      const questionResult = db.prepare(
+        "INSERT INTO questions (user_email, category, question_text, file_path, file_type, claude_answer, status, session_id, chat_message_id) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)"
+      ).run(session.user_email, session.category, content, filePath, fileType, fullResponse, session.id, aiMsgResult.lastInsertRowid);
+      questionId = questionResult.lastInsertRowid;
+    }
 
     // Update session timestamp
     db.prepare("UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?").run(session.id);
 
     // Send done event
-    res.write(`event: done\ndata: ${JSON.stringify({
-      messageId: aiMsgResult.lastInsertRowid,
-      questionId: questionResult.lastInsertRowid,
-      reviewNote: 'This response is being reviewed by an industry expert. You will be notified when verified.',
-    })}\n\n`);
+    if (isClarification) {
+      res.write(`event: done\ndata: ${JSON.stringify({
+        messageId: aiMsgResult.lastInsertRowid,
+        isClarification: true,
+      })}\n\n`);
+    } else {
+      res.write(`event: done\ndata: ${JSON.stringify({
+        messageId: aiMsgResult.lastInsertRowid,
+        questionId,
+        reviewNote: 'This response is being reviewed by an industry expert. You will be notified when verified.',
+      })}\n\n`);
+    }
 
     res.end();
   } catch (error) {

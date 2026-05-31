@@ -169,19 +169,29 @@ export class Chat implements OnInit, AfterViewChecked {
           this.streamingText.update(t => t + event.data.text);
           this.shouldScroll = true;
         } else if (event.type === 'done') {
-          // Add completed AI message
-          this.messages.update(msgs => [...msgs, {
-            role: 'assistant',
-            content: this.streamingText(),
-            type: 'answer',
-          }]);
-          // Add system review note
-          this.messages.update(msgs => [...msgs, {
-            role: 'system',
-            content: event.data.reviewNote,
-            type: 'system',
-          }]);
+          const responseContent = this.streamingText();
           this.streamingText.set('');
+
+          if (event.data.isClarification) {
+            // AI is asking for clarification — show as normal message, no review note
+            this.messages.update(msgs => [...msgs, {
+              role: 'assistant',
+              content: responseContent,
+              type: 'clarification',
+            }]);
+          } else {
+            // Real answer — show with review note
+            this.messages.update(msgs => [...msgs, {
+              role: 'assistant',
+              content: responseContent,
+              type: 'answer',
+            }]);
+            this.messages.update(msgs => [...msgs, {
+              role: 'system',
+              content: event.data.reviewNote,
+              type: 'system',
+            }]);
+          }
         } else if (event.type === 'error') {
           this.messages.update(msgs => [...msgs, {
             role: 'assistant',
@@ -202,6 +212,23 @@ export class Chat implements OnInit, AfterViewChecked {
 
     this.isStreaming.set(false);
     this.shouldScroll = true;
+  }
+
+  hasAnswer(): boolean {
+    return this.messages().some(m => m.type === 'answer');
+  }
+
+  async changeQuestion() {
+    const id = this.currentSessionId();
+    if (!id) return;
+    try {
+      await this.chatService.discardSession(id);
+      this.currentSessionId.set(null);
+      this.messages.set([]);
+      this.loadSessions();
+    } catch {
+      this.error.set('Failed to change question.');
+    }
   }
 
   async discardSession() {
