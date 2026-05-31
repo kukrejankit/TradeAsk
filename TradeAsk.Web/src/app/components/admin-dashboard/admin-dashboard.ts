@@ -14,6 +14,13 @@ export class AdminDashboard implements OnInit {
   loginEmail = signal('');
   loginPassword = signal('');
   loginError = signal('');
+  showSignup = signal(false);
+  signupName = signal('');
+  signupEmail = signal('');
+  signupPassword = signal('');
+  signupSpecialty = signal('');
+  signupSubmitting = signal(false);
+  signupSuccess = signal('');
 
   // Dashboard state
   questions = signal<Question[]>([]);
@@ -22,6 +29,8 @@ export class AdminDashboard implements OnInit {
   selectedQuestion = signal<Question | null>(null);
   loading = signal(false);
   toast = signal('');
+  activeTab = signal<'questions' | 'experts'>('questions');
+  experts = signal<any[]>([]);
 
   // Edit state
   editAnswer = signal('');
@@ -37,6 +46,39 @@ export class AdminDashboard implements OnInit {
       this.isLoggedIn.set(true);
       this.loadData();
     }
+  }
+
+  toggleSignup() {
+    this.showSignup.set(!this.showSignup());
+    this.loginError.set('');
+    this.signupSuccess.set('');
+  }
+
+  signup() {
+    this.loginError.set('');
+    this.signupSuccess.set('');
+
+    if (!this.signupName() || !this.signupEmail() || !this.signupPassword()) {
+      this.loginError.set('Please fill in all required fields.');
+      return;
+    }
+
+    this.signupSubmitting.set(true);
+    this.api.signup({
+      email: this.signupEmail(),
+      password: this.signupPassword(),
+      name: this.signupName(),
+      specialty: this.signupSpecialty(),
+    }).subscribe({
+      next: (res) => {
+        this.signupSuccess.set(res.message);
+        this.signupSubmitting.set(false);
+      },
+      error: (err) => {
+        this.loginError.set(err.error?.error || 'Signup failed');
+        this.signupSubmitting.set(false);
+      },
+    });
   }
 
   login() {
@@ -139,6 +181,34 @@ export class AdminDashboard implements OnInit {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
+  }
+
+  setTab(tab: 'questions' | 'experts') {
+    this.activeTab.set(tab);
+    if (tab === 'experts') {
+      this.loadExperts();
+    }
+  }
+
+  loadExperts() {
+    this.api.getExperts().subscribe({
+      next: (e) => this.experts.set(e),
+      error: () => this.showToast('Failed to load experts'),
+    });
+  }
+
+  approveExpert(id: number) {
+    this.api.approveExpert(id).subscribe({
+      next: () => { this.showToast('Expert approved'); this.loadExperts(); },
+      error: () => this.showToast('Failed to approve expert'),
+    });
+  }
+
+  rejectExpert(id: number) {
+    this.api.rejectExpert(id).subscribe({
+      next: () => { this.showToast('Expert rejected'); this.loadExperts(); },
+      error: () => this.showToast('Failed to reject expert'),
+    });
   }
 
   private showToast(msg: string) {

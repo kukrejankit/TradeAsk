@@ -39,8 +39,24 @@ export class ApiService {
     return this.http.post<{ id: number; message: string }>(`${this.baseUrl}/questions`, formData);
   }
 
+  signup(data: { email: string; password: string; name: string; specialty: string }): Observable<{ message: string; id: number }> {
+    return this.http.post<{ message: string; id: number }>(`${this.baseUrl}/admin/signup`, data);
+  }
+
   login(email: string, password: string): Observable<{ token: string; email: string }> {
     return this.http.post<{ token: string; email: string }>(`${this.baseUrl}/admin/login`, { email, password });
+  }
+
+  getExperts(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.baseUrl}/admin/experts`);
+  }
+
+  approveExpert(id: number): Observable<any> {
+    return this.http.put(`${this.baseUrl}/admin/experts/${id}/approve`, {});
+  }
+
+  rejectExpert(id: number): Observable<any> {
+    return this.http.put(`${this.baseUrl}/admin/experts/${id}/reject`, {});
   }
 
   getQuestions(status?: string): Observable<Question[]> {

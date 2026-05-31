@@ -39,6 +39,9 @@ function initSchema() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
+      name TEXT,
+      specialty TEXT,
+      status TEXT DEFAULT 'approved' CHECK(status IN ('pending', 'approved', 'rejected')),
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -112,6 +115,19 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_users_firebase ON users(firebase_uid);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   `);
+
+  // Migrate admin_users table to add new columns if they don't exist
+  const adminCols = db.prepare("PRAGMA table_info(admin_users)").all() as any[];
+  const colNames = adminCols.map((c: any) => c.name);
+  if (!colNames.includes('name')) {
+    db.exec("ALTER TABLE admin_users ADD COLUMN name TEXT");
+  }
+  if (!colNames.includes('specialty')) {
+    db.exec("ALTER TABLE admin_users ADD COLUMN specialty TEXT");
+  }
+  if (!colNames.includes('status')) {
+    db.exec("ALTER TABLE admin_users ADD COLUMN status TEXT DEFAULT 'approved'");
+  }
 }
 
 export async function query<T>(sql: string, params?: any[]): Promise<T> {

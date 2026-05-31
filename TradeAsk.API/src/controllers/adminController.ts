@@ -1,13 +1,43 @@
 import { Router, Response } from 'express';
 import { query, queryOne, update, insert, getDb } from '../models/database';
 import { hashPassword, verifyPassword, generateToken } from '../services/authService';
-import { sendAnswerEmail } from '../services/emailService';
+import { sendAnswerEmail, sendExpertApprovalEmail } from '../services/emailService';
 import { generateEmbedding, embeddingToBuffer } from '../services/embeddingService';
 import { sendPushNotification } from '../services/pushService';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { ApproveRequest, LoginRequest } from '../models/types';
 
 const router = Router();
+
+router.post('/signup', async (req: AuthRequest, res: Response) => {
+  try {
+    const { email, password, name, specialty } = req.body;
+    if (!email || !password || !name) {
+      res.status(400).json({ error: 'Email, password, and name are required' });
+      return;
+    }
+
+    const existing = await queryOne<any>(
+      'SELECT id FROM admin_users WHERE email = ?',
+      [email]
+    );
+    if (existing) {
+      res.status(409).json({ error: 'An account with this email already exists' });
+      return;
+    }
+
+    const passwordHash = hashPassword(password);
+    const id = await insert(
+      'INSERT INTO admin_users (email, password_hash, name, specialty, status) VALUES (?, ?, ?, ?, ?)',
+      [email, passwordHash, name, specialty || null, 'pending']
+    );
+
+    res.status(201).json({ message: 'Account created. Awaiting admin approval.', id });
+  } catch (error) {
+    console.error('Signup failed:', error);
+    res.status(500).json({ error: 'Failed to create account' });
+  }
+});
 
 router.post('/login', async (req: AuthRequest, res: Response) => {
   try {
@@ -18,12 +48,22 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
     }
 
     const admin = await queryOne<any>(
-      'SELECT id, email, password_hash FROM admin_users WHERE email = ?',
+      'SELECT id, email, password_hash, status FROM admin_users WHERE email = ?',
       [email]
     );
 
     if (!admin || !verifyPassword(password, admin.password_hash)) {
       res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+
+    if (admin.status === 'pending') {
+      res.status(403).json({ error: 'Your account is pending approval. You will be notified once approved.' });
+      return;
+    }
+
+    if (admin.status === 'rejected') {
+      res.status(403).json({ error: 'Your account has not been approved.' });
       return;
     }
 
@@ -195,6 +235,60 @@ router.put('/questions/:id/escalate', requireAuth, async (req: AuthRequest, res:
   } catch (error) {
     console.error('Escalate failed:', error);
     res.status(500).json({ error: 'Failed to escalate question' });
+  }
+});
+
+router.get('/experts', requireAuth, async (_req: AuthRequest, res: Response) => {
+  try {
+    const experts = await query<any[]>(
+      'SELECT id, email, name, specialty, status, created_at FROM admin_users ORDER BY created_at DESC'
+    );
+    res.json(experts);
+  } catch (error) {
+    console.error('Get experts failed:', error);
+    res.status(500).json({ error: 'Failed to fetch experts' });
+  }
+});
+
+router.put('/experts/:id/approve', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const expert = await queryOne<any>(
+      'SELECT id, email, name FROM admin_users WHERE id = ?',
+      [req.params.id]
+    );
+    if (!expert) {
+      res.status(404).json({ error: 'Expert not found' });
+      return;
+    }
+
+    await update(
+      "UPDATE admin_users SET status = 'approved' WHERE id = ?",
+      [req.params.id]
+    );
+
+    await sendExpertApprovalEmail(expert.email, expert.name || 'Expert');
+
+    res.json({ message: 'Expert approved and notified' });
+  } catch (error) {
+    console.error('Approve expert failed:', error);
+    res.status(500).json({ error: 'Failed to approve expert' });
+  }
+});
+
+router.put('/experts/:id/reject', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const affected = await update(
+      "UPDATE admin_users SET status = 'rejected' WHERE id = ?",
+      [req.params.id]
+    );
+    if (affected === 0) {
+      res.status(404).json({ error: 'Expert not found' });
+      return;
+    }
+    res.json({ message: 'Expert rejected' });
+  } catch (error) {
+    console.error('Reject expert failed:', error);
+    res.status(500).json({ error: 'Failed to reject expert' });
   }
 });
 
