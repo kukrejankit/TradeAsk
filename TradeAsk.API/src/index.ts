@@ -47,7 +47,7 @@ app.get('/api/reset-admin', async (_req, res) => {
   try {
     const { hashPassword } = await import('./services/authService');
     const { update, insert, queryOne } = await import('./models/database');
-    const email = 'netzerocleantechnology@gmail.com';
+    const email = 'ankit.kukreja.89@gmail.com';
     const password = 'TradeAsk2024!';
     const hash = hashPassword(password);
     const existing = await queryOne<any>('SELECT id FROM admin_users WHERE email = ?', [email]);
