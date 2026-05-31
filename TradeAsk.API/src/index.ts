@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config/env';
 import questionsController from './controllers/questionsController';
 import adminController from './controllers/adminController';
+import chatController from './controllers/chatController';
 import filesController from './controllers/filesController';
 import documentsController from './controllers/documentsController';
 import usersController from './controllers/usersController';
@@ -32,6 +33,7 @@ const questionSubmitLimiter = rateLimit({
 });
 
 app.use('/api/questions', questionSubmitLimiter, questionsController);
+app.use('/api/chat', chatController);
 app.use('/api/admin', adminController);
 app.use('/api/admin/documents', documentsController);
 app.use('/api/users', usersController);

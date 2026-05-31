@@ -1,0 +1,233 @@
+<div class="h-screen flex flex-col bg-white">
+  @if (!isIdentified()) {
+    <!-- Identity Step -->
+    <div class="flex-1 flex items-center justify-center px-4">
+      <div class="w-full max-w-md">
+        <div class="text-center mb-8">
+          <h1 class="text-2xl font-bold text-gray-900">TradeAsk</h1>
+          <p class="text-gray-600 mt-2">Get instant AI answers with expert review</p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+          <!-- Toggle new/returning -->
+          <div class="flex gap-2 mb-2">
+            <button
+              (click)="identifyMode.set('new')"
+              [class]="identifyMode() === 'new' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'"
+              class="flex-1 py-2 rounded-lg text-sm font-medium"
+            >New question</button>
+            <button
+              (click)="identifyMode.set('returning')"
+              [class]="identifyMode() === 'returning' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'"
+              class="flex-1 py-2 rounded-lg text-sm font-medium"
+            >Return to chat</button>
+          </div>
+
+          <!-- Email -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Your email</label>
+            <input
+              type="email"
+              [ngModel]="userEmail()"
+              (ngModelChange)="userEmail.set($event)"
+              name="email"
+              placeholder="you@email.com"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+            />
+          </div>
+
+          @if (identifyMode() === 'new') {
+            <!-- Category -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Trade category</label>
+              <select
+                [ngModel]="selectedCategory()"
+                (ngModelChange)="selectedCategory.set($event)"
+                name="category"
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none bg-white"
+              >
+                <option value="" disabled>Select a category...</option>
+                @for (cat of categories; track cat) {
+                  <option [value]="cat">{{ cat }}</option>
+                }
+              </select>
+            </div>
+          }
+
+          @if (error()) {
+            <p class="text-red-600 text-sm">{{ error() }}</p>
+          }
+
+          @if (identifyMode() === 'new') {
+            <button (click)="startSession()" class="w-full bg-brand-600 text-white py-3 rounded-lg font-medium hover:bg-brand-700">
+              Start chatting →
+            </button>
+          } @else {
+            <button (click)="retrieveByEmail()" class="w-full bg-brand-600 text-white py-3 rounded-lg font-medium hover:bg-brand-700">
+              Retrieve my chats
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  } @else {
+    <!-- Chat Interface -->
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Sidebar (sessions list) -->
+      @if (showSidebar() || sessions().length > 0) {
+        <div class="hidden md:flex w-64 border-r border-gray-200 flex-col bg-gray-50">
+          <div class="p-4 border-b border-gray-200">
+            <button (click)="newSession()" class="w-full bg-brand-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
+              + New question
+            </button>
+          </div>
+          <div class="flex-1 overflow-y-auto p-2">
+            @for (s of sessions(); track s.id) {
+              <button
+                (click)="loadSession(s.id)"
+                [class]="currentSessionId() === s.id ? 'bg-white border-brand-500' : 'bg-transparent border-transparent hover:bg-white'"
+                class="w-full text-left p-3 rounded-lg border mb-1 transition-colors"
+              >
+                <p class="text-xs font-medium text-brand-600">{{ s.category }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ s.updated_at | slice:0:10 }}</p>
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Main chat area -->
+      <div class="flex-1 flex flex-col">
+        <!-- Chat header -->
+        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white">
+          <div class="flex items-center gap-3">
+            <button (click)="showSidebar.set(!showSidebar())" class="md:hidden text-gray-500">☰</button>
+            <h2 class="font-semibold text-gray-900 text-sm">
+              @if (currentSessionId()) {
+                {{ selectedCategory() || 'TradeAsk' }}
+              } @else {
+                New conversation
+              }
+            </h2>
+          </div>
+          <div class="flex items-center gap-2">
+            @if (currentSessionId() && !isStreaming()) {
+              <button (click)="discardSession()" class="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">
+                Discard
+              </button>
+              <button (click)="newSession()" class="text-xs text-brand-600 hover:text-brand-700 px-2 py-1 rounded hover:bg-blue-50">
+                New question
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div #messagesContainer class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          @if (messages().length === 0 && !currentSessionId()) {
+            <!-- Empty state: select category and type -->
+            <div class="flex items-center justify-center h-full">
+              <div class="text-center max-w-sm">
+                @if (!selectedCategory()) {
+                  <p class="text-gray-500 mb-4">Select a category to start</p>
+                  <div class="flex flex-wrap gap-2 justify-center">
+                    @for (cat of categories; track cat) {
+                      <button
+                        (click)="selectedCategory.set(cat)"
+                        class="px-3 py-1.5 rounded-full text-sm border border-gray-200 hover:border-brand-500 hover:text-brand-600 transition-colors"
+                      >{{ cat }}</button>
+                    }
+                  </div>
+                } @else {
+                  <p class="text-gray-500">Ask your <span class="font-medium text-brand-600">{{ selectedCategory() }}</span> question below</p>
+                }
+              </div>
+            </div>
+          } @else if (messages().length === 0 && currentSessionId()) {
+            <div class="flex items-center justify-center h-full">
+              <p class="text-gray-500">Ask your <span class="font-medium text-brand-600">{{ selectedCategory() }}</span> question below</p>
+            </div>
+          }
+
+          @for (msg of messages(); track $index) {
+            @if (msg.role === 'user') {
+              <div class="flex justify-end">
+                <div class="bg-brand-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[80%]">
+                  <p class="text-sm whitespace-pre-wrap">{{ msg.content }}</p>
+                </div>
+              </div>
+            } @else if (msg.role === 'assistant') {
+              <div class="flex justify-start">
+                <div class="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-[80%]">
+                  @if (msg.isExpertReviewed) {
+                    <div class="flex items-center gap-1 mb-1">
+                      <span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">✓ Expert reviewed</span>
+                    </div>
+                  }
+                  <p class="text-sm text-gray-800 whitespace-pre-wrap">{{ msg.content }}</p>
+                </div>
+              </div>
+            } @else if (msg.role === 'system') {
+              <div class="flex justify-center">
+                <p class="text-xs text-gray-500 bg-yellow-50 border border-yellow-100 rounded-lg px-3 py-2 max-w-[90%] text-center">{{ msg.content }}</p>
+              </div>
+            }
+          }
+
+          <!-- Streaming message -->
+          @if (streamingText()) {
+            <div class="flex justify-start">
+              <div class="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-[80%]">
+                <p class="text-sm text-gray-800 whitespace-pre-wrap">{{ streamingText() }}<span class="animate-pulse">▌</span></p>
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Error -->
+        @if (error()) {
+          <div class="px-4 py-2">
+            <p class="text-red-600 text-sm">{{ error() }}</p>
+          </div>
+        }
+
+        <!-- Input bar -->
+        <div class="border-t border-gray-200 px-4 py-3 bg-white">
+          @if (file) {
+            <div class="flex items-center gap-2 mb-2 text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg">
+              <span>📎 {{ file.name }}</span>
+              <button (click)="removeFile()" class="text-red-500 hover:text-red-700 ml-auto">✕</button>
+            </div>
+          }
+          <div class="flex items-end gap-2">
+            <button (click)="fileInput.click()" class="text-gray-400 hover:text-gray-600 p-2" [disabled]="isStreaming()">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+            </button>
+            <input #fileInput type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf" (change)="onFileSelected($event)" class="hidden" />
+            <textarea
+              [ngModel]="inputText()"
+              (ngModelChange)="inputText.set($event)"
+              (keydown.enter)="onEnterKey($event)"
+              name="input"
+              rows="1"
+              placeholder="Ask your trade question..."
+              class="flex-1 resize-none border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none text-sm max-h-32"
+              [disabled]="isStreaming()"
+            ></textarea>
+            <button
+              (click)="sendMessage()"
+              [disabled]="isStreaming() || !inputText().trim()"
+              class="bg-brand-600 text-white p-2.5 rounded-xl hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</div>

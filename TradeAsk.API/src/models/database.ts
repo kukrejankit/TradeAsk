@@ -110,10 +110,38 @@ function initSchema() {
       last_login TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+      id TEXT PRIMARY KEY,
+      session_token TEXT NOT NULL UNIQUE,
+      user_email TEXT NOT NULL,
+      category TEXT NOT NULL,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'discarded', 'archived')),
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
+      content TEXT NOT NULL,
+      message_type TEXT NOT NULL CHECK(message_type IN ('question', 'answer', 'clarification', 'expert_review', 'followup')),
+      file_path TEXT NULL,
+      file_type TEXT NULL,
+      is_expert_reviewed INTEGER DEFAULT 0,
+      question_id INTEGER NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
+      FOREIGN KEY (question_id) REFERENCES questions(id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_chunks_document ON document_chunks(document_id);
     CREATE INDEX IF NOT EXISTS idx_queue_status ON processing_queue(status);
     CREATE INDEX IF NOT EXISTS idx_users_firebase ON users(firebase_uid);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_sessions_token ON chat_sessions(session_token);
+    CREATE INDEX IF NOT EXISTS idx_sessions_email ON chat_sessions(user_email);
+    CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id);
   `);
 
   // Migrate admin_users table to add new columns if they don't exist
@@ -127,6 +155,16 @@ function initSchema() {
   }
   if (!colNames.includes('status')) {
     db.exec("ALTER TABLE admin_users ADD COLUMN status TEXT DEFAULT 'approved'");
+  }
+
+  // Migrate questions table for chat support
+  const questionCols = db.prepare("PRAGMA table_info(questions)").all() as any[];
+  const qColNames = questionCols.map((c: any) => c.name);
+  if (!qColNames.includes('session_id')) {
+    db.exec("ALTER TABLE questions ADD COLUMN session_id TEXT NULL");
+  }
+  if (!qColNames.includes('chat_message_id')) {
+    db.exec("ALTER TABLE questions ADD COLUMN chat_message_id INTEGER NULL");
   }
 }
 

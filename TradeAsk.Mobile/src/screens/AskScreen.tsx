@@ -5,14 +5,13 @@ import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
 
 const CATEGORIES = [
-  'Electrical (NEC)',
-  'Plumbing (IPC/UPC)',
-  'Structural / Building Code (IBC)',
+  'Electrical',
+  'Plumbing',
+  'Structural / Building',
   'HVAC / Mechanical',
-  'Fire & Life Safety',
-  'OSHA / Safety',
+  'OSHA & Safety',
   'General Construction',
-  'Automotive',
+  'Other',
 ];
 
 export default function AskScreen() {

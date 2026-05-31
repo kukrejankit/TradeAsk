@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-nati
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
 
-const CATEGORIES = ['All', 'Electrical', 'Plumbing', 'HVAC', 'Structural', 'Safety', 'Automotive'];
+const CATEGORIES = ['All', 'Electrical', 'Plumbing', 'Structural / Building', 'HVAC / Mechanical', 'OSHA & Safety', 'General Construction', 'Other'];
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
