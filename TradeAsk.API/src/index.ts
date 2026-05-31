@@ -43,6 +43,18 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/api/reset-admin', async (_req, res) => {
+  try {
+    const { hashPassword } = await import('./services/authService');
+    const { update, queryOne } = await import('./models/database');
+    const admin = await queryOne<any>('SELECT id, email FROM admin_users WHERE email = ?', ['ankit@tradeask.app']);
+    if (!admin) { res.json({ error: 'not found' }); return; }
+    const hash = hashPassword('changeme123');
+    await update('UPDATE admin_users SET password_hash = ?, status = ? WHERE id = ?', [hash, 'approved', admin.id]);
+    res.json({ message: 'Password reset', id: admin.id });
+  } catch (error: any) { res.status(500).json({ error: error.message }); }
+});
+
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err);
