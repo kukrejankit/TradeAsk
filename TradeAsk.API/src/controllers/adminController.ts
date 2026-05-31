@@ -232,9 +232,13 @@ router.put('/questions/:id/approve', requireAuth, async (req: AuthRequest, res: 
     if (question.session_id) {
       try {
         const db = getDb();
+        const wasChanged = finalAnswer.trim() !== (question.claude_answer || '').trim();
+        const reviewContent = wasChanged
+          ? finalAnswer
+          : '✓ The above response has been reviewed and approved by an industry expert.';
         db.prepare(
-          "INSERT INTO chat_messages (session_id, role, content, message_type, is_expert_reviewed, question_id) VALUES (?, 'assistant', ?, 'expert_review', 1, ?)"
-        ).run(question.session_id, finalAnswer, question.id);
+          "INSERT INTO chat_messages (session_id, role, content, message_type, is_expert_reviewed, question_id) VALUES (?, ?, ?, 'expert_review', 1, ?)"
+        ).run(question.session_id, wasChanged ? 'assistant' : 'system', reviewContent, question.id);
       } catch (chatErr) {
         console.error('Failed to write to chat session (non-critical):', chatErr);
       }
