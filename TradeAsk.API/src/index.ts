@@ -46,12 +46,18 @@ app.get('/api/health', (_req, res) => {
 app.get('/api/reset-admin', async (_req, res) => {
   try {
     const { hashPassword } = await import('./services/authService');
-    const { update, queryOne } = await import('./models/database');
-    const admin = await queryOne<any>('SELECT id, email FROM admin_users WHERE email = ?', ['ankit@tradeask.app']);
-    if (!admin) { res.json({ error: 'not found' }); return; }
-    const hash = hashPassword('changeme123');
-    await update('UPDATE admin_users SET password_hash = ?, status = ? WHERE id = ?', [hash, 'approved', admin.id]);
-    res.json({ message: 'Password reset', id: admin.id });
+    const { update, insert, queryOne } = await import('./models/database');
+    const email = 'netzerocleantechnology@gmail.com';
+    const password = 'TradeAsk2024!';
+    const hash = hashPassword(password);
+    const existing = await queryOne<any>('SELECT id FROM admin_users WHERE email = ?', [email]);
+    if (existing) {
+      await update('UPDATE admin_users SET password_hash = ?, status = ? WHERE id = ?', [hash, 'approved', existing.id]);
+      res.json({ message: 'Admin updated', email, password });
+    } else {
+      const id = await insert("INSERT INTO admin_users (email, password_hash, name, status) VALUES (?, ?, ?, 'approved')", [email, hash, 'Ankit']);
+      res.json({ message: 'Admin created', email, password, id });
+    }
   } catch (error: any) { res.status(500).json({ error: error.message }); }
 });
 
