@@ -43,26 +43,6 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// One-time seed route - remove after use
-app.get('/api/setup-admin', async (_req, res) => {
-  try {
-    const { hashPassword } = await import('./services/authService');
-    const { queryOne, insert } = await import('./models/database');
-    const email = 'ankit@tradeask.app';
-    const existing = await queryOne<any>('SELECT id FROM admin_users WHERE email = ?', [email]);
-    if (existing) {
-      res.json({ message: 'Admin already exists', id: existing.id });
-      return;
-    }
-    const id = await insert(
-      "INSERT INTO admin_users (email, password_hash, name, status) VALUES (?, ?, ?, 'approved')",
-      [email, hashPassword('changeme123'), 'Ankit']
-    );
-    res.json({ message: 'Admin created', id });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err);
