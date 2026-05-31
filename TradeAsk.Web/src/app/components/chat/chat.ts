@@ -132,9 +132,15 @@ export class Chat implements OnInit, AfterViewChecked {
     }
   }
 
+  selectCategory(cat: string) {
+    this.selectedCategory.set(cat);
+    this.error.set('');
+  }
+
   async sendMessage() {
     const text = this.inputText().trim();
     if (!text || this.isStreaming()) return;
+    this.error.set('');
 
     // If no session yet, create one first
     if (!this.currentSessionId()) {
@@ -229,6 +235,18 @@ export class Chat implements OnInit, AfterViewChecked {
     } catch {
       this.error.set('Failed to change question.');
     }
+  }
+
+  async deleteSession(id: string, event: Event) {
+    event.stopPropagation();
+    try {
+      await this.chatService.discardSession(id);
+      if (this.currentSessionId() === id) {
+        this.currentSessionId.set(null);
+        this.messages.set([]);
+      }
+      this.loadSessions();
+    } catch {}
   }
 
   async discardSession() {

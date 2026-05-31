@@ -4,6 +4,7 @@ import { environment } from '../../environments/environment';
 export interface ChatSession {
   id: string;
   category: string;
+  topic?: string;
   status: string;
   created_at: string;
   updated_at: string;

@@ -125,8 +125,14 @@ router.post('/message', upload.single('file'), async (req: Request, res: Respons
       questionId = questionResult.lastInsertRowid;
     }
 
-    // Update session timestamp
-    db.prepare("UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?").run(session.id);
+    // Set topic from first message if not set yet
+    const existingSession = db.prepare("SELECT topic FROM chat_sessions WHERE id = ?").get(session.id) as any;
+    if (!existingSession?.topic) {
+      const topic = content.split(/\s+/).slice(0, 4).join(' ').substring(0, 40);
+      db.prepare("UPDATE chat_sessions SET topic = ?, updated_at = datetime('now') WHERE id = ?").run(topic, session.id);
+    } else {
+      db.prepare("UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?").run(session.id);
+    }
 
     // Send done event
     if (isClarification) {
@@ -176,12 +182,12 @@ router.get('/sessions', async (req: Request, res: Response) => {
         return;
       }
       sessions = await query<any[]>(
-        "SELECT id, category, status, created_at, updated_at FROM chat_sessions WHERE user_email = ? AND status != 'discarded' ORDER BY updated_at DESC",
+        "SELECT id, category, topic, status, created_at, updated_at FROM chat_sessions WHERE user_email = ? AND status != 'discarded' ORDER BY updated_at DESC",
         [session.user_email]
       );
     } else {
       sessions = await query<any[]>(
-        "SELECT id, category, status, created_at, updated_at FROM chat_sessions WHERE user_email = ? AND status != 'discarded' ORDER BY updated_at DESC",
+        "SELECT id, category, topic, status, created_at, updated_at FROM chat_sessions WHERE user_email = ? AND status != 'discarded' ORDER BY updated_at DESC",
         [email]
       );
     }

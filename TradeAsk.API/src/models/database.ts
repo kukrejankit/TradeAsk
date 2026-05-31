@@ -163,6 +163,13 @@ function initSchema() {
     db.exec("ALTER TABLE admin_users ADD COLUMN role TEXT DEFAULT 'expert'");
   }
 
+  // Migrate chat_sessions for topic
+  const sessionCols = db.prepare("PRAGMA table_info(chat_sessions)").all() as any[];
+  const sessionColNames = sessionCols.map((c: any) => c.name);
+  if (!sessionColNames.includes('topic')) {
+    db.exec("ALTER TABLE chat_sessions ADD COLUMN topic TEXT");
+  }
+
   // Migrate questions table for chat support
   const questionCols = db.prepare("PRAGMA table_info(questions)").all() as any[];
   const qColNames = questionCols.map((c: any) => c.name);
