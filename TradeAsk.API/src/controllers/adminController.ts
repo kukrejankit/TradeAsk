@@ -1,7 +1,9 @@
+import crypto from 'crypto';
 import { Router, Response } from 'express';
 import { query, queryOne, update, insert, getDb } from '../models/database';
 import { hashPassword, verifyPassword, generateToken } from '../services/authService';
 import { sendAnswerEmail, sendExpertApprovalEmail } from '../services/emailService';
+import { verifyFirebaseToken } from '../services/firebaseService';
 import { generateEmbedding, embeddingToBuffer } from '../services/embeddingService';
 import { sendPushNotification } from '../services/pushService';
 import { requireAuth, AuthRequest } from '../middleware/auth';
@@ -106,6 +108,61 @@ router.post('/seed', async (req: AuthRequest, res: Response) => {
   }
 });
 
+router.post('/firebase-login', async (req: AuthRequest, res: Response) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      res.status(400).json({ error: 'Firebase ID token required' });
+      return;
+    }
+
+    const decoded = await verifyFirebaseToken(idToken);
+    if (!decoded) {
+      res.status(401).json({ error: 'Invalid Firebase token' });
+      return;
+    }
+
+    const email = decoded.email;
+    const name = decoded.name || decoded.email?.split('@')[0] || 'Expert';
+    const photoUrl = decoded.picture || null;
+    const firebaseUid = decoded.uid;
+
+    let admin = await queryOne<any>(
+      'SELECT id, email, status, firebase_uid FROM admin_users WHERE email = ? OR firebase_uid = ?',
+      [email, firebaseUid]
+    );
+
+    if (!admin) {
+      const passwordHash = hashPassword(crypto.randomUUID());
+      const id = await insert(
+        'INSERT INTO admin_users (email, password_hash, name, firebase_uid, status) VALUES (?, ?, ?, ?, ?)',
+        [email, passwordHash, name, firebaseUid, 'pending']
+      );
+      res.status(201).json({ message: 'Account created. Awaiting admin approval.', id, status: 'pending' });
+      return;
+    }
+
+    if (!admin.firebase_uid) {
+      await update('UPDATE admin_users SET firebase_uid = ? WHERE id = ?', [firebaseUid, admin.id]);
+    }
+
+    if (admin.status === 'pending') {
+      res.status(403).json({ error: 'Your account is pending approval. You will be notified once approved.' });
+      return;
+    }
+    if (admin.status === 'rejected') {
+      res.status(403).json({ error: 'Your account has not been approved.' });
+      return;
+    }
+
+    const token = generateToken(admin.id, admin.email);
+    res.json({ token, email: admin.email, name, photoUrl });
+  } catch (error) {
+    console.error('Firebase login failed:', error);
+    res.status(500).json({ error: 'Firebase login failed' });
+  }
+});
+
 router.get('/questions', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const status = req.query.status as string | undefined;
@@ -171,11 +228,28 @@ router.put('/questions/:id/approve', requireAuth, async (req: AuthRequest, res: 
       [finalAnswer, correctionNeeded || false, correctionNotes || null, addedToKb || false, req.params.id]
     );
 
+    // Add expert-reviewed message to chat session if linked
+    if (question.session_id) {
+      try {
+        const db = getDb();
+        db.prepare(
+          "INSERT INTO chat_messages (session_id, role, content, message_type, is_expert_reviewed, question_id) VALUES (?, 'assistant', ?, 'expert_review', 1, ?)"
+        ).run(question.session_id, finalAnswer, question.id);
+      } catch (chatErr) {
+        console.error('Failed to write to chat session (non-critical):', chatErr);
+      }
+    }
+
+    const chatLink = question.session_id
+      ? `https://tradeask.app/chat/${question.session_id}`
+      : 'https://tradeask.app';
+
     const emailSent = await sendAnswerEmail(
       question.user_email,
       question.question_text,
       question.category,
-      finalAnswer
+      finalAnswer,
+      chatLink
     );
 
     if (emailSent) {
@@ -204,9 +278,9 @@ router.put('/questions/:id/approve', requireAuth, async (req: AuthRequest, res: 
     try {
       await sendPushNotification(
         question.user_email,
-        'Answer Ready',
-        `Your ${question.category} question has been answered`,
-        { questionId: String(question.id) }
+        'Expert-Reviewed Answer Ready',
+        `Your ${question.category} question has been reviewed by an expert`,
+        { questionId: String(question.id), sessionId: question.session_id || '', chatLink }
       );
     } catch (pushError) {
       console.error('Push notification failed (non-critical):', pushError);

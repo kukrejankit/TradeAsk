@@ -156,6 +156,9 @@ function initSchema() {
   if (!colNames.includes('status')) {
     db.exec("ALTER TABLE admin_users ADD COLUMN status TEXT DEFAULT 'approved'");
   }
+  if (!colNames.includes('firebase_uid')) {
+    db.exec("ALTER TABLE admin_users ADD COLUMN firebase_uid TEXT");
+  }
 
   // Migrate questions table for chat support
   const questionCols = db.prepare("PRAGMA table_info(questions)").all() as any[];

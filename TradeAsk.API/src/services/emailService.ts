@@ -5,7 +5,8 @@ export async function sendAnswerEmail(
   toEmail: string,
   questionText: string,
   category: string,
-  finalAnswer: string
+  finalAnswer: string,
+  chatLink?: string
 ): Promise<boolean> {
   if (!config.sendgrid.apiKey) {
     console.warn('SendGrid API key not configured — skipping email');
@@ -34,7 +35,11 @@ export async function sendAnswerEmail(
   <p style="font-size: 14px; color: #666;">
     This answer was reviewed by a construction industry professional before being sent to you.
   </p>
-  <p>Have another question? Visit <a href="https://tradeask.app">https://tradeask.app</a></p>
+
+  ${chatLink ? `<div style="margin: 20px 0;">
+    <a href="${chatLink}" style="background: #0284c7; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">View in chat &rarr;</a>
+  </div>
+  <p style="font-size: 14px; color: #666;">You can ask follow-up questions in your chat session.</p>` : `<p>Have another question? Visit <a href="https://tradeask.app">https://tradeask.app</a></p>`}
 
   <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
   <p style="font-size: 12px; color: #999;">

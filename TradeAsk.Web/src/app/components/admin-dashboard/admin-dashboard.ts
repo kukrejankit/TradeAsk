@@ -1,6 +1,7 @@
 import { Component, signal, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService, Question, AdminStats } from '../../services/api.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -46,6 +47,67 @@ export class AdminDashboard implements OnInit {
       this.isLoggedIn.set(true);
       this.loadData();
     }
+  }
+
+  async googleSignIn() {
+    this.loginError.set('');
+    try {
+      const firebase = await this.loadFirebase();
+      const auth = firebase.auth();
+      const provider = new (firebase as any).auth.GoogleAuthProvider();
+      const result = await auth.signInWithPopup(provider);
+      const idToken = await result.user!.getIdToken();
+
+      this.api.firebaseLogin(idToken).subscribe({
+        next: (res: any) => {
+          if (res.token) {
+            localStorage.setItem('tradeask_token', res.token);
+            this.isLoggedIn.set(true);
+            this.loadData();
+          } else if (res.status === 'pending') {
+            this.loginError.set(res.message || 'Account created. Awaiting admin approval.');
+          }
+        },
+        error: (err) => {
+          this.loginError.set(err.error?.error || 'Google sign-in failed');
+        },
+      });
+    } catch (err: any) {
+      if (err.code !== 'auth/popup-closed-by-user') {
+        this.loginError.set('Google sign-in failed. Please try again.');
+      }
+    }
+  }
+
+  private firebaseApp: any = null;
+  private async loadFirebase(): Promise<any> {
+    if (this.firebaseApp) return this.firebaseApp;
+    const firebase = (window as any).firebase;
+    if (firebase && firebase.apps?.length) {
+      this.firebaseApp = firebase;
+      return firebase;
+    }
+
+    await this.loadScript('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
+    await this.loadScript('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js');
+
+    const fb = (window as any).firebase;
+    if (!fb.apps.length) {
+      fb.initializeApp(environment.firebase);
+    }
+    this.firebaseApp = fb;
+    return fb;
+  }
+
+  private loadScript(src: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(script);
+    });
   }
 
   toggleSignup() {

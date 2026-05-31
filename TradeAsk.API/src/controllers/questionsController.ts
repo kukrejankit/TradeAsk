@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
-import { insert, queryOne, update } from '../models/database';
+import { insert, query, queryOne, update } from '../models/database';
 import { getClaudeAnswer } from '../services/claudeService';
 import { validateFile, getUploadDir } from '../services/fileService';
 import { config } from '../config/env';
@@ -90,6 +90,27 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Question submission failed:', error);
     res.status(500).json({ error: 'Failed to submit question. Please try again.' });
+  }
+});
+
+router.get('/public', async (req: Request, res: Response) => {
+  try {
+    const category = req.query.category as string | undefined;
+    let sql = "SELECT id, category, question_text, status, created_at FROM questions WHERE status = 'pending' OR status = 'escalated'";
+    const params: any[] = [];
+
+    if (category && category !== 'All') {
+      sql += ' AND category = ?';
+      params.push(category);
+    }
+
+    sql += ' ORDER BY created_at DESC LIMIT 15';
+
+    const rows = await query<any[]>(sql, params);
+    res.json(rows);
+  } catch (error) {
+    console.error('Public questions failed:', error);
+    res.status(500).json({ error: 'Failed to fetch questions' });
   }
 });
 

@@ -43,6 +43,10 @@ export class ApiService {
     return this.http.post<{ message: string; id: number }>(`${this.baseUrl}/admin/signup`, data);
   }
 
+  firebaseLogin(idToken: string): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/admin/firebase-login`, { idToken });
+  }
+
   login(email: string, password: string): Observable<{ token: string; email: string }> {
     return this.http.post<{ token: string; email: string }>(`${this.baseUrl}/admin/login`, { email, password });
   }
@@ -79,6 +83,12 @@ export class ApiService {
 
   getStats(): Observable<AdminStats> {
     return this.http.get<AdminStats>(`${this.baseUrl}/admin/stats`);
+  }
+
+  getPublicQuestions(category?: string): Observable<any[]> {
+    let params = new HttpParams();
+    if (category) params = params.set('category', category);
+    return this.http.get<any[]>(`${this.baseUrl}/questions/public`, { params });
   }
 
   getFileUrl(filename: string): string {
