@@ -50,7 +50,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
     }
 
     const admin = await queryOne<any>(
-      'SELECT id, email, password_hash, status FROM admin_users WHERE email = ?',
+      'SELECT id, email, password_hash, status, role FROM admin_users WHERE email = ?',
       [email]
     );
 
@@ -70,7 +70,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
     }
 
     const token = generateToken(admin.id, admin.email);
-    res.json({ token, email: admin.email });
+    res.json({ token, email: admin.email, role: admin.role || 'expert' });
   } catch (error) {
     console.error('Login failed:', error);
     res.status(500).json({ error: 'Login failed' });

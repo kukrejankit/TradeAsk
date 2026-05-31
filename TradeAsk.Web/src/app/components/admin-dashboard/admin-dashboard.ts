@@ -12,6 +12,7 @@ import { environment } from '../../../environments/environment';
 export class AdminDashboard implements OnInit {
   // Auth state
   isLoggedIn = signal(false);
+  userRole = signal<string>('expert');
   loginEmail = signal('');
   loginPassword = signal('');
   loginError = signal('');
@@ -45,6 +46,7 @@ export class AdminDashboard implements OnInit {
     const token = localStorage.getItem('tradeask_token');
     if (token) {
       this.isLoggedIn.set(true);
+      this.userRole.set(localStorage.getItem('tradeask_role') || 'expert');
       this.loadData();
     }
   }
@@ -146,8 +148,10 @@ export class AdminDashboard implements OnInit {
   login() {
     this.loginError.set('');
     this.api.login(this.loginEmail(), this.loginPassword()).subscribe({
-      next: (res) => {
+      next: (res: any) => {
         localStorage.setItem('tradeask_token', res.token);
+        localStorage.setItem('tradeask_role', res.role || 'expert');
+        this.userRole.set(res.role || 'expert');
         this.isLoggedIn.set(true);
         this.loadData();
       },

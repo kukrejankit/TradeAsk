@@ -147,11 +147,13 @@
               [class]="activeTab() === 'questions' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'"
               class="px-3 py-1.5 rounded-lg text-sm font-medium"
             >Questions</button>
-            <button
-              (click)="setTab('experts')"
-              [class]="activeTab() === 'experts' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-              class="px-3 py-1.5 rounded-lg text-sm font-medium"
-            >Experts</button>
+            @if (userRole() === 'super_admin') {
+              <button
+                (click)="setTab('experts')"
+                [class]="activeTab() === 'experts' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium"
+              >Experts</button>
+            }
           </nav>
         </div>
         <button (click)="logout()" class="text-sm text-gray-500 hover:text-gray-700">Logout</button>

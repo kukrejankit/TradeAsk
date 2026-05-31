@@ -159,6 +159,9 @@ function initSchema() {
   if (!colNames.includes('firebase_uid')) {
     db.exec("ALTER TABLE admin_users ADD COLUMN firebase_uid TEXT");
   }
+  if (!colNames.includes('role')) {
+    db.exec("ALTER TABLE admin_users ADD COLUMN role TEXT DEFAULT 'expert'");
+  }
 
   // Migrate questions table for chat support
   const questionCols = db.prepare("PRAGMA table_info(questions)").all() as any[];
