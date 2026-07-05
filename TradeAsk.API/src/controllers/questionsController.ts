@@ -96,7 +96,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
 router.get('/public', async (req: Request, res: Response) => {
   try {
     const category = req.query.category as string | undefined;
-    let sql = "SELECT id, category, question_text, status, created_at FROM questions WHERE status = 'pending' OR status = 'escalated'";
+    let sql = "SELECT id, category, question_text, status, created_at FROM questions WHERE status = 'expert_review'";
     const params: any[] = [];
 
     if (category && category !== 'All') {
