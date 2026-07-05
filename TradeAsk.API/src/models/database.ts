@@ -25,7 +25,7 @@ function initSchema() {
       question_text TEXT NOT NULL,
       file_path TEXT NULL,
       file_type TEXT NULL,
-      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'answered', 'escalated', 'expert_reviewed')),
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'answered', 'escalated', 'expert_review')),
       claude_answer TEXT NULL,
       final_answer TEXT NULL,
       correction_needed INTEGER DEFAULT 0,
