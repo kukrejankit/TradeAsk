@@ -354,23 +354,75 @@ router.put('/experts/:id/approve', requireAuth, async (req: AuthRequest, res: Re
   }
 });
 
-router.put('/experts/:id/reject', requireAuth, async (req: AuthRequest, res: Response) => {
+router.put('/questions/:id/escalate', requireAuth, async (req: AuthRequest, res: Response) => {
+
   try {
+
     const affected = await update(
-      "UPDATE admin_users SET status = 'rejected' WHERE id = ?",
+
+      "UPDATE questions SET status = 'escalated' WHERE id = ?",
+
       [req.params.id]
+
     );
+
     if (affected === 0) {
-      res.status(404).json({ error: 'Expert not found' });
+
+      res.status(404).json({ error: 'Question not found' });
+
       return;
+
     }
-    res.json({ message: 'Expert rejected' });
+
+    console.log(`Question ${req.params.id} escalated`);
+
+    res.json({ message: 'Question escalated' });
+
   } catch (error) {
-    console.error('Reject expert failed:', error);
-    res.status(500).json({ error: 'Failed to reject expert' });
+
+    console.error('Escalate failed:', error);
+
+    res.status(500).json({ error: 'Failed to escalate question' });
+
   }
+
 });
 
+ 
+
+router.put('/questions/:id/route-to-expert', requireAuth, async (req: AuthRequest, res: Response) => {
+
+  try {
+
+    const affected = await update(
+
+      "UPDATE questions SET status = 'expert_review' WHERE id = ?",
+
+      [req.params.id]
+
+    );
+
+    if (affected === 0) {
+
+      res.status(404).json({ error: 'Question not found' });
+
+      return;
+
+    }
+
+    console.log(`Question ${req.params.id} routed to expert review`);
+
+    res.json({ message: 'Question sent to expert review' });
+
+  } catch (error) {
+
+    console.error('Route to expert failed:', error);
+
+    res.status(500).json({ error: 'Failed to route question' });
+
+  }
+
+});
 router.get('/stats', requireAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const [stats] = await query<any[]>(`
