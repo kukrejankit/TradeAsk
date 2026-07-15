@@ -113,7 +113,7 @@ export async function getClaudeAnswer(
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-5',
         max_tokens: 2048,
         system: SYSTEM_PROMPT,
         messages,
@@ -236,7 +236,7 @@ export async function* streamClaudeAnswer(
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-5',
         max_tokens: 2048,
         stream: true,
         system: CHAT_SYSTEM_PROMPT,
