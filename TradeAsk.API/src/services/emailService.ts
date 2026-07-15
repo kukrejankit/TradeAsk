@@ -15,7 +15,7 @@ function emailWrapper(content: string): string {
         </div>
       </td>
       <td style="vertical-align: middle; padding-left: 12px;">
-        <span style="color: #ffffff; font-size: 20px; font-weight: 700; letter-spacing: -0.5px;">TradeAsk</span>
+        <span style="color: #ffffff; font-size: 20px; font-weight: 700; letter-spacing: -0.5px;">ExpertAsk</span>
       </td>
     </tr></table>
   </div>
@@ -28,7 +28,7 @@ function emailWrapper(content: string): string {
   <!-- Footer -->
   <div style="padding: 20px 32px; text-align: center;">
     <p style="font-size: 12px; color: #9ca3af; margin: 0;">
-      TradeAsk — AI-powered compliance answers verified by industry experts<br>
+      ExpertAsk — AI answers verified by human experts<br>
       <a href="https://tradeask.app" style="color: #0284c7; text-decoration: none;">tradeask.app</a>
     </p>
   </div>
@@ -83,8 +83,8 @@ export async function sendAnswerEmail(
   `;
 
   const subject = wasCorrected
-    ? 'Your TradeAsk question — expert-corrected answer ready'
-    : 'Your TradeAsk question — expert-verified answer ready';
+    ? 'Your ExpertAsk question — expert-corrected answer ready'
+    : 'Your ExpertAsk question — expert-verified answer ready';
 
   const msg = {
     to: toEmail,
@@ -130,7 +130,7 @@ export async function sendExpertApprovalEmail(toEmail: string, name: string): Pr
   const msg = {
     to: toEmail,
     from: { email: config.sendgrid.fromEmail, name: config.sendgrid.fromName },
-    subject: 'Welcome to TradeAsk — your expert account is live',
+    subject: 'Welcome to ExpertAsk — your expert account is live',
     html: emailWrapper(content),
   };
 

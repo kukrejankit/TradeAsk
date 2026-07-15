@@ -1,35 +1,20 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, StyleSheet } from 'react-native';
-import HomeScreen from './src/screens/HomeScreen';
-import AskScreen from './src/screens/AskScreen';
-import HistoryScreen from './src/screens/HistoryScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ChatProvider } from './src/contexts/ChatContext';
+import { AdminProvider } from './src/contexts/AdminContext';
 import { registerForPushNotifications } from './src/services/notifications';
+import { LandingScreen } from './src/screens/LandingScreen';
+import { AskScreen } from './src/screens/AskScreen';
+import { ExpertScreen } from './src/screens/ExpertScreen';
+import { AdminScreen } from './src/screens/AdminScreen';
+import { DocumentsScreen } from './src/screens/DocumentsScreen';
+import type { RootStackParamList } from './src/types/navigation';
 
-const Tab = createBottomTabNavigator();
-
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  const icons: Record<string, string> = {
-    Home: '🏠',
-    Ask: '💬',
-    History: '📋',
-    Settings: '⚙️',
-  };
-  return (
-    <View style={tabStyles.iconContainer}>
-      <Text style={[tabStyles.icon, focused && tabStyles.iconFocused]}>{icons[label]}</Text>
-    </View>
-  );
-}
-
-const tabStyles = StyleSheet.create({
-  iconContainer: { alignItems: 'center', justifyContent: 'center' },
-  icon: { fontSize: 20 },
-  iconFocused: { fontSize: 22 },
-});
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   useEffect(() => {
@@ -37,23 +22,23 @@ export default function App() {
   }, []);
 
   return (
-    <NavigationContainer>
-      <StatusBar style="auto" />
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarIcon: ({ focused }) => <TabIcon label={route.name} focused={focused} />,
-          tabBarActiveTintColor: '#0c4a6e',
-          tabBarInactiveTintColor: '#9ca3af',
-          tabBarStyle: { paddingTop: 4, height: 56 },
-          tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
-        })}
-      >
-        <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Ask" component={AskScreen} options={{ tabBarLabel: 'Ask' }} />
-        <Tab.Screen name="History" component={HistoryScreen} options={{ tabBarLabel: 'My Q&A' }} />
-        <Tab.Screen name="Settings" component={SettingsScreen} />
-      </Tab.Navigator>
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ChatProvider>
+          <AdminProvider>
+            <NavigationContainer>
+              <StatusBar style="auto" />
+              <Stack.Navigator screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="Landing" component={LandingScreen} />
+                <Stack.Screen name="Ask" component={AskScreen} />
+                <Stack.Screen name="Expert" component={ExpertScreen} />
+                <Stack.Screen name="Admin" component={AdminScreen} />
+                <Stack.Screen name="Documents" component={DocumentsScreen} />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </AdminProvider>
+        </ChatProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

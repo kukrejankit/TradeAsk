@@ -13,7 +13,7 @@ export class PublicQuestions implements OnInit {
   activeCategory = signal('All');
   loading = signal(false);
 
-  categories = ['All', 'Electrical', 'Plumbing', 'Structural / Building', 'HVAC / Mechanical', 'OSHA & Safety', 'General Construction', 'Other'];
+  categories = ['All', 'Technology & IT', 'Legal & Compliance', 'Finance & Tax', 'Health & Medical', 'Engineering & Construction', 'Science & Research', 'Business & Strategy', 'Other'];
 
   constructor(private api: ApiService) {}
 

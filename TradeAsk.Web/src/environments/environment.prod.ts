@@ -2,7 +2,7 @@ export const environment = {
   production: true,
   apiUrl: 'https://api.tradeask.app/api',
   firebase: {
-    apiKey: 'AIzaSyAQqUAyftbEq2l6zv3g0z_eZEUlWH6mrvA',
+    apiKey: 'AIzaSyAOqUAyftbEq216zv3g0z_eZEUIwH6mrvA',
     authDomain: 'tradeask-de59b.firebaseapp.com',
     projectId: 'tradeask-de59b',
     storageBucket: 'tradeask-de59b.firebasestorage.app',

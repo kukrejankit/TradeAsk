@@ -4,7 +4,7 @@
     <div class="flex-1 flex items-center justify-center px-4">
       <div class="w-full max-w-md">
         <div class="text-center mb-8">
-          <h1 class="text-2xl font-bold text-gray-900">TradeAsk</h1>
+          <h1 class="text-2xl font-bold text-gray-900">ExpertAsk</h1>
           <p class="text-gray-600 mt-2">Get instant AI answers with expert review</p>
         </div>
 
@@ -36,23 +36,6 @@
             />
           </div>
 
-          @if (identifyMode() === 'new') {
-            <!-- Category -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Trade category</label>
-              <select
-                [ngModel]="selectedCategory()"
-                (ngModelChange)="selectedCategory.set($event)"
-                name="category"
-                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none bg-white"
-              >
-                <option value="" disabled>Select a category...</option>
-                @for (cat of categories; track cat) {
-                  <option [value]="cat">{{ cat }}</option>
-                }
-              </select>
-            </div>
-          }
 
           @if (error()) {
             <p class="text-red-600 text-sm">{{ error() }}</p>
@@ -89,7 +72,7 @@
                   [class]="currentSessionId() === s.id ? 'bg-white border-brand-500' : 'bg-transparent border-transparent hover:bg-white'"
                   class="flex-1 text-left p-3 rounded-lg border transition-colors"
                 >
-                  <p class="text-xs font-medium text-gray-900">{{ s.topic || s.category }}</p>
+                  <p class="text-xs font-medium text-gray-900">{{ s.topic || (s.category + ' · ' + (s.created_at | slice:11:16)) }}</p>
                   <p class="text-xs text-gray-400 mt-0.5">{{ s.category }} · {{ s.updated_at | slice:0:10 }}</p>
                 </button>
                 <button (click)="deleteSession(s.id, $event)" class="text-gray-300 hover:text-red-500 p-2 ml-1">
@@ -106,11 +89,12 @@
         <!-- Chat header -->
         <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white flex-shrink-0 sticky top-0 z-30">
           <div class="flex items-center gap-3">
+            <a routerLink="/" class="text-brand-600 hover:text-brand-700 text-sm font-medium">← Home</a>
             <button (click)="showSidebar.set(!showSidebar())" class="md:hidden text-gray-500 text-lg">☰</button>
             <div>
               <h2 class="font-semibold text-gray-900 text-sm">
                 @if (currentSessionId()) {
-                  {{ selectedCategory() || 'TradeAsk' }}
+                  {{ selectedCategory() || 'ExpertAsk' }}
                 } @else {
                   New conversation
                 }
@@ -144,7 +128,7 @@
                       [class]="currentSessionId() === s.id ? 'bg-blue-50 border-brand-500' : 'bg-transparent border-transparent hover:bg-gray-50'"
                       class="flex-1 text-left p-3 rounded-lg border"
                     >
-                      <p class="text-xs font-medium text-gray-900">{{ s.topic || s.category }}</p>
+                      <p class="text-xs font-medium text-gray-900">{{ s.topic || (s.category + ' · ' + (s.created_at | slice:11:16)) }}</p>
                       <p class="text-xs text-gray-400 mt-0.5">{{ s.category }} · {{ s.updated_at | slice:0:10 }}</p>
                     </button>
                     <button (click)="deleteSession(s.id, $event)" class="text-gray-300 hover:text-red-500 p-2 ml-1">
@@ -161,27 +145,13 @@
         <!-- Messages -->
         <div #messagesContainer class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           @if (messages().length === 0 && !currentSessionId()) {
-            <!-- Empty state: select category and type -->
+            <!-- Empty state -->
             <div class="flex items-center justify-center h-full">
-              <div class="text-center max-w-sm">
-                @if (!selectedCategory()) {
-                  <p class="text-gray-500 mb-4">Select a category to start</p>
-                  <div class="flex flex-wrap gap-2 justify-center">
-                    @for (cat of categories; track cat) {
-                      <button
-                        (click)="selectCategory(cat)"
-                        class="px-3 py-1.5 rounded-full text-sm border border-gray-200 hover:border-brand-500 hover:text-brand-600 transition-colors"
-                      >{{ cat }}</button>
-                    }
-                  </div>
-                } @else {
-                  <p class="text-gray-500">Ask your <span class="font-medium text-brand-600">{{ selectedCategory() }}</span> question below</p>
-                }
-              </div>
+              <p class="text-gray-500">Ask any question below — AI answers instantly, then a human expert reviews.</p>
             </div>
           } @else if (messages().length === 0 && currentSessionId()) {
             <div class="flex items-center justify-center h-full">
-              <p class="text-gray-500">Ask your <span class="font-medium text-brand-600">{{ selectedCategory() }}</span> question below</p>
+              <p class="text-gray-500">Ask your question below</p>
             </div>
           }
 
@@ -206,15 +176,25 @@
             } @else if (msg.role === 'system') {
               <div class="flex flex-col items-center gap-3">
                 <p class="text-xs text-gray-500 bg-yellow-50 border border-yellow-100 rounded-lg px-3 py-2 max-w-[90%] text-center">{{ msg.content }}</p>
-                <!-- Action buttons after review note -->
-                <div class="flex gap-2">
-                  <button (click)="changeQuestion()" class="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50">
-                    Change my question
-                  </button>
-                  <button (click)="newSession()" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700">
-                    New question
-                  </button>
-                </div>
+                @if (msg.type === 'review_prompt') {
+                  <div class="flex gap-2">
+                    <button (click)="continueChatting()" class="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                      Continue chatting
+                    </button>
+                    <button (click)="sendForReview()" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700">
+                      Send for expert review
+                    </button>
+                  </div>
+                } @else {
+                  <div class="flex gap-2">
+                    <button (click)="changeQuestion()" class="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                      Change my question
+                    </button>
+                    <button (click)="newSession()" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700">
+                      New question
+                    </button>
+                  </div>
+                }
               </div>
             }
           }
@@ -244,18 +224,13 @@
               <button (click)="removeFile()" class="text-red-500 hover:text-red-700 ml-auto">✕</button>
             </div>
           }
-          <!-- Attachment buttons -->
+          <!-- Attachment button -->
           <div class="flex items-center gap-1 mb-2">
-            <button (click)="cameraInput.click()" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-gray-100" [disabled]="isStreaming()">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              Camera
-            </button>
             <button (click)="fileInput.click()" class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-gray-100" [disabled]="isStreaming()">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-              Upload file
+              Attach file
             </button>
           </div>
-          <input #cameraInput type="file" accept="image/*" capture="environment" (change)="onFileSelected($event)" class="hidden" />
           <input #fileInput type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf" (change)="onFileSelected($event)" class="hidden" />
           <div class="flex items-end gap-2">
             <textarea
@@ -264,7 +239,7 @@
               (keydown.enter)="onEnterKey($event)"
               name="input"
               rows="1"
-              placeholder="Ask your trade question..."
+              placeholder="Ask your question..."
               class="flex-1 resize-none border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none text-sm max-h-32"
               [disabled]="isStreaming()"
             ></textarea>

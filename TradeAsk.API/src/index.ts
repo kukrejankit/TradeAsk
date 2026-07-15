@@ -12,6 +12,7 @@ import usersController from './controllers/usersController';
 import { startWorker } from './services/processingWorker';
 
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(helmet());
 const allowedOrigins = config.nodeEnv === 'production'
@@ -41,6 +42,34 @@ app.use('/api/files', filesController);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Temporary: reset admin credentials (remove after use)
+app.post('/api/reset-admin', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      res.status(400).json({ error: 'Email and password required' });
+      return;
+    }
+    const { hashPassword } = await import('./services/authService');
+    const { getDb } = await import('./models/database');
+    const db = getDb();
+    const passwordHash = hashPassword(password);
+    const existing = db.prepare('SELECT id FROM admin_users WHERE email = ?').get(email) as any;
+    if (existing) {
+      db.prepare('UPDATE admin_users SET password_hash = ?, status = ?, role = ? WHERE id = ?')
+        .run(passwordHash, 'approved', 'super_admin', existing.id);
+      res.json({ message: 'Admin password reset', id: existing.id });
+    } else {
+      const result = db.prepare('INSERT INTO admin_users (email, password_hash, name, status, role) VALUES (?, ?, ?, ?, ?)')
+        .run(email, passwordHash, 'Admin', 'approved', 'super_admin');
+      res.json({ message: 'Admin created', id: result.lastInsertRowid });
+    }
+  } catch (error: any) {
+    console.error('Reset admin failed:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 

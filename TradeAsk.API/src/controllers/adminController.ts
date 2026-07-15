@@ -8,6 +8,7 @@ import { generateEmbedding, embeddingToBuffer } from '../services/embeddingServi
 import { sendPushNotification } from '../services/pushService';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { ApproveRequest, LoginRequest } from '../models/types';
+import { config } from '../config/env';
 
 const router = Router();
 
@@ -160,6 +161,93 @@ router.post('/firebase-login', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Firebase login failed:', error);
     res.status(500).json({ error: 'Firebase login failed' });
+  }
+});
+
+router.post('/forgot-password', async (req: AuthRequest, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+
+    const admin = await queryOne<any>(
+      'SELECT id, email, name FROM admin_users WHERE email = ?',
+      [email]
+    );
+
+    if (!admin) {
+      res.status(404).json({ error: 'No account found with this email address' });
+      return;
+    }
+
+    const resetToken = crypto.randomUUID();
+    const expiry = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+    await update(
+      'UPDATE admin_users SET reset_token = ?, reset_token_expiry = ? WHERE id = ?',
+      [resetToken, expiry, admin.id]
+    );
+
+    const resetLink = `https://tradeask.app/reset-password?token=${resetToken}`;
+
+    if (config.sendgrid.apiKey) {
+      const sgMail = require('@sendgrid/mail');
+      sgMail.setApiKey(config.sendgrid.apiKey);
+      await sgMail.send({
+        to: email,
+        from: { email: config.sendgrid.fromEmail, name: config.sendgrid.fromName },
+        subject: 'TradeAsk — Reset your password',
+        html: `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
+          <h2 style="color: #111827;">Reset your password</h2>
+          <p style="color: #6b7280;">Click the link below to reset your password. This link expires in 1 hour.</p>
+          <a href="${resetLink}" style="display: inline-block; background: #1a73e8; color: #fff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 16px 0;">Reset password →</a>
+          <p style="color: #9ca3af; font-size: 12px;">If you didn't request this, you can safely ignore this email.</p>
+        </div>`,
+      });
+    }
+
+    res.json({ message: 'If that email is registered, a reset link has been sent.' });
+  } catch (error) {
+    console.error('Forgot password failed:', error);
+    res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+router.post('/reset-password', async (req: AuthRequest, res: Response) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      res.status(400).json({ error: 'Token and new password are required' });
+      return;
+    }
+
+    const admin = await queryOne<any>(
+      'SELECT id, reset_token_expiry FROM admin_users WHERE reset_token = ?',
+      [token]
+    );
+
+    if (!admin) {
+      res.status(400).json({ error: 'Invalid or expired reset token' });
+      return;
+    }
+
+    if (new Date(admin.reset_token_expiry) < new Date()) {
+      res.status(400).json({ error: 'Reset token has expired. Please request a new one.' });
+      return;
+    }
+
+    const passwordHash = hashPassword(password);
+    await update(
+      'UPDATE admin_users SET password_hash = ?, reset_token = NULL, reset_token_expiry = NULL WHERE id = ?',
+      [passwordHash, admin.id]
+    );
+
+    res.json({ message: 'Password has been reset. You can now log in.' });
+  } catch (error) {
+    console.error('Reset password failed:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 
@@ -317,6 +405,24 @@ router.put('/questions/:id/escalate', requireAuth, async (req: AuthRequest, res:
   }
 });
 
+router.put('/questions/:id/route-to-expert', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const affected = await update(
+      "UPDATE questions SET status = 'expert_review' WHERE id = ?",
+      [req.params.id]
+    );
+    if (affected === 0) {
+      res.status(404).json({ error: 'Question not found' });
+      return;
+    }
+    console.log(`Question ${req.params.id} routed to expert review`);
+    res.json({ message: 'Question sent to expert review' });
+  } catch (error) {
+    console.error('Route to expert failed:', error);
+    res.status(500).json({ error: 'Failed to route question' });
+  }
+});
+
 router.get('/experts', requireAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const experts = await query<any[]>(
@@ -354,75 +460,23 @@ router.put('/experts/:id/approve', requireAuth, async (req: AuthRequest, res: Re
   }
 });
 
-router.put('/questions/:id/escalate', requireAuth, async (req: AuthRequest, res: Response) => {
-
+router.put('/experts/:id/reject', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-
     const affected = await update(
-
-      "UPDATE questions SET status = 'escalated' WHERE id = ?",
-
+      "UPDATE admin_users SET status = 'rejected' WHERE id = ?",
       [req.params.id]
-
     );
-
     if (affected === 0) {
-
-      res.status(404).json({ error: 'Question not found' });
-
+      res.status(404).json({ error: 'Expert not found' });
       return;
-
     }
-
-    console.log(`Question ${req.params.id} escalated`);
-
-    res.json({ message: 'Question escalated' });
-
+    res.json({ message: 'Expert rejected' });
   } catch (error) {
-
-    console.error('Escalate failed:', error);
-
-    res.status(500).json({ error: 'Failed to escalate question' });
-
+    console.error('Reject expert failed:', error);
+    res.status(500).json({ error: 'Failed to reject expert' });
   }
-
 });
 
- 
-
-router.put('/questions/:id/route-to-expert', requireAuth, async (req: AuthRequest, res: Response) => {
-
-  try {
-
-    const affected = await update(
-
-      "UPDATE questions SET status = 'expert_review' WHERE id = ?",
-
-      [req.params.id]
-
-    );
-
-    if (affected === 0) {
-
-      res.status(404).json({ error: 'Question not found' });
-
-      return;
-
-    }
-
-    console.log(`Question ${req.params.id} routed to expert review`);
-
-    res.json({ message: 'Question sent to expert review' });
-
-  } catch (error) {
-
-    console.error('Route to expert failed:', error);
-
-    res.status(500).json({ error: 'Failed to route question' });
-
-  }
-
-});
 router.get('/stats', requireAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const [stats] = await query<any[]>(`

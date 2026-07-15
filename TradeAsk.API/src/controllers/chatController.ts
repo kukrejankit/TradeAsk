@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 import path from 'path';
 import { query, queryOne, insert, update, getDb } from '../models/database';
-import { streamClaudeAnswer } from '../services/claudeService';
+import { streamClaudeAnswer, generateTopicPhrase } from '../services/claudeService';
 import { requireSession, SessionRequest } from '../middleware/sessionAuth';
 import { config } from '../config/env';
 
@@ -125,11 +125,15 @@ router.post('/message', upload.single('file'), async (req: Request, res: Respons
       questionId = questionResult.lastInsertRowid;
     }
 
-    // Set topic from first message if not set yet
+    // Set topic from first message if not set yet (AI-generated short phrase)
     const existingSession = db.prepare("SELECT topic FROM chat_sessions WHERE id = ?").get(session.id) as any;
     if (!existingSession?.topic) {
-      const topic = content.split(/\s+/).slice(0, 4).join(' ').substring(0, 40);
-      db.prepare("UPDATE chat_sessions SET topic = ?, updated_at = datetime('now') WHERE id = ?").run(topic, session.id);
+      generateTopicPhrase(content, fullResponse).then(topic => {
+        db.prepare("UPDATE chat_sessions SET topic = ?, updated_at = datetime('now') WHERE id = ?").run(topic, session.id);
+      }).catch(() => {
+        const fallback = content.split(/\s+/).slice(0, 5).join(' ');
+        db.prepare("UPDATE chat_sessions SET topic = ?, updated_at = datetime('now') WHERE id = ?").run(fallback, session.id);
+      });
     } else {
       db.prepare("UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?").run(session.id);
     }

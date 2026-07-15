@@ -1,219 +1,713 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Image } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { useNavigation } from '@react-navigation/native';
-import { api } from '../services/api';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, FlatList,
+  StyleSheet, KeyboardAvoidingView, Platform, ScrollView,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
+import { useChat } from '../contexts/ChatContext';
+import { chatService } from '../services/chatService';
+import { isValidEmail } from '../utils/validation';
+import { StreamingBubble } from '../components/StreamingBubble';
+import { FileAttachBar } from '../components/FileAttachBar';
+import { SessionSidebar } from '../components/SessionSidebar';
+import type { ChatMessage } from '../types/chat';
+import type { RootStackParamList } from '../types/navigation';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+type Route = RouteProp<RootStackParamList, 'Ask'>;
 
 const CATEGORIES = [
-  'Electrical',
-  'Plumbing',
-  'Structural / Building',
-  'HVAC / Mechanical',
-  'OSHA & Safety',
-  'General Construction',
+  'Technology & IT',
+  'Legal & Compliance',
+  'Finance & Tax',
+  'Health & Medical',
+  'Engineering & Construction',
+  'Science & Research',
+  'Business & Strategy',
   'Other',
 ];
 
-export default function AskScreen() {
-  const navigation = useNavigation<any>();
-  const [email, setEmail] = useState('');
-  const [category, setCategory] = useState('');
-  const [question, setQuestion] = useState('');
-  const [photo, setPhoto] = useState<{ uri: string; name: string; type: string } | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
+export function AskScreen() {
+  const nav = useNavigation<Nav>();
+  const route = useRoute<Route>();
+  const insets = useSafeAreaInsets();
+  const {
+    identified, email: storedEmail, sessions,
+    identify, createSession, loadSessions, setCurrentSession, currentSessionId, logout,
+  } = useChat();
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setPhoto({ uri: asset.uri, name: 'photo.jpg', type: 'image/jpeg' });
-    }
-  };
+  // Identity state
+  const [identifyMode, setIdentifyMode] = useState<'new' | 'returning'>('new');
+  const [email, setEmail] = useState(storedEmail || '');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [identError, setIdentError] = useState('');
+  const [identLoading, setIdentLoading] = useState(false);
 
-  const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera access is required to take photos.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setPhoto({ uri: asset.uri, name: 'photo.jpg', type: 'image/jpeg' });
-    }
-  };
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [streaming, setStreaming] = useState(false);
+  const [streamContent, setStreamContent] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [file, setFile] = useState<{ uri: string; name: string; type: string } | null>(null);
+  const [chatError, setChatError] = useState('');
+  const flatListRef = useRef<FlatList>(null);
 
-  const submit = async () => {
-    if (!email || !category || !question || question.length < 10) {
-      Alert.alert('Missing info', 'Please fill in your email, select a category, and write a question (min 10 characters).');
-      return;
-    }
+  const sessionId = route.params?.sessionId || currentSessionId;
 
-    setSubmitting(true);
+  useEffect(() => {
+    if (identified) {
+      loadSessions();
+    }
+  }, [identified]);
+
+  useEffect(() => {
+    if (sessionId && identified) {
+      setCurrentSession(sessionId);
+      loadMessages(sessionId);
+    }
+  }, [sessionId, identified]);
+
+  useEffect(() => {
+    if (storedEmail) setEmail(storedEmail);
+  }, [storedEmail]);
+
+  const loadMessages = async (id: string) => {
     try {
-      const formData = new FormData();
-      formData.append('email', email);
-      formData.append('category', category);
-      formData.append('questionText', question);
-      if (photo) {
-        formData.append('file', { uri: photo.uri, name: photo.name, type: photo.type } as any);
-      }
-
-      await api.submitQuestion(formData);
-      setSuccess(true);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to submit question');
-    } finally {
-      setSubmitting(false);
+      const data = await chatService.getSession(id);
+      setMessages(data.messages);
+      setSelectedCategory(data.session.category);
+    } catch {
+      setChatError('Failed to load messages');
     }
   };
 
-  if (success) {
+  // Identity handlers
+  const handleStartSession = async () => {
+    if (!isValidEmail(email)) { setIdentError('Please enter a valid email address.'); return; }
+    if (!selectedCategory) { setIdentError('Please select a category.'); return; }
+    setIdentError('');
+    setIdentLoading(true);
+    try {
+      await createSession(email, selectedCategory);
+      await loadSessions();
+      setMessages([]);
+    } catch (e: any) {
+      setIdentError(e.message || 'Failed to start session.');
+    } finally {
+      setIdentLoading(false);
+    }
+  };
+
+  const handleRetrieve = async () => {
+    if (!isValidEmail(email)) { setIdentError('Please enter a valid email address.'); return; }
+    setIdentError('');
+    setIdentLoading(true);
+    try {
+      const found = await identify(email);
+      if (found) {
+        await loadSessions();
+      } else {
+        setIdentError('No sessions found for this email. Start a new conversation.');
+      }
+    } catch (e: any) {
+      setIdentError(e.message || 'Failed to retrieve sessions.');
+    } finally {
+      setIdentLoading(false);
+    }
+  };
+
+  // Chat handlers
+  const selectCategoryInChat = (cat: string) => {
+    setSelectedCategory(cat);
+  };
+
+  const sendMessage = async () => {
+    const text = input.trim();
+    if (!text && !file) return;
+    setChatError('');
+
+    // If no session yet, create one
+    if (!currentSessionId) {
+      if (!selectedCategory) {
+        setChatError('Please select a category first.');
+        return;
+      }
+      try {
+        await createSession(email, selectedCategory);
+        await loadSessions();
+      } catch {
+        setChatError('Failed to start session.');
+        return;
+      }
+    }
+
+    setInput('');
+    const userMsg: ChatMessage = {
+      id: Date.now(),
+      role: 'user',
+      content: text,
+      message_type: 'question',
+      file_path: file?.name || null,
+      file_type: file?.type || null,
+      is_expert_reviewed: false,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, userMsg]);
+    setStreaming(true);
+    setStreamContent('');
+
+    try {
+      let fullContent = '';
+      for await (const event of chatService.streamMessage(text, file?.uri, file?.name, file?.type)) {
+        if (event.type === 'token') {
+          fullContent += event.data.text || event.data.content || '';
+          setStreamContent(fullContent);
+        } else if (event.type === 'done') {
+          const isClarification = event.data.isClarification;
+          const assistantMsg: ChatMessage = {
+            id: Date.now() + 1,
+            role: 'assistant',
+            content: fullContent,
+            message_type: isClarification ? 'clarification' : 'answer',
+            file_path: null,
+            file_type: null,
+            is_expert_reviewed: false,
+            created_at: new Date().toISOString(),
+          };
+          setMessages(prev => [...prev, assistantMsg]);
+
+          if (!isClarification) {
+            const systemMsg: ChatMessage = {
+              id: Date.now() + 2,
+              role: 'system',
+              content: 'Would you like to continue chatting, or send this answer for expert review?',
+              message_type: 'review_prompt',
+              file_path: null,
+              file_type: null,
+              is_expert_reviewed: false,
+              created_at: new Date().toISOString(),
+            };
+            setMessages(prev => [...prev, systemMsg]);
+          }
+          setStreamContent('');
+          loadSessions();
+        } else if (event.type === 'error') {
+          const errMsg: ChatMessage = {
+            id: Date.now() + 1,
+            role: 'assistant',
+            content: event.data.message || 'An error occurred.',
+            message_type: 'answer',
+            file_path: null,
+            file_type: null,
+            is_expert_reviewed: false,
+            created_at: new Date().toISOString(),
+          };
+          setMessages(prev => [...prev, errMsg]);
+          setStreamContent('');
+        }
+      }
+    } catch {
+      const sysMsg: ChatMessage = {
+        id: Date.now() + 1,
+        role: 'system',
+        content: 'Failed to get AI response. Your question has been queued for expert review.',
+        message_type: 'system',
+        file_path: null,
+        file_type: null,
+        is_expert_reviewed: false,
+        created_at: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, sysMsg]);
+      setStreamContent('');
+    } finally {
+      setStreaming(false);
+      setFile(null);
+    }
+  };
+
+  const handleContinueChatting = () => {
+    // Remove the review prompt system message so user can keep chatting
+    setMessages(prev => prev.filter(m => m.message_type !== 'review_prompt'));
+  };
+
+  const handleSendForReview = () => {
+    // Replace the review prompt with a confirmation message
+    setMessages(prev => prev.map(m =>
+      m.message_type === 'review_prompt'
+        ? { ...m, content: 'Your answer has been sent for expert review. You\'ll receive an email once reviewed.', message_type: 'system' }
+        : m
+    ));
+  };
+
+  const handleChangeQuestion = async () => {
+    if (currentSessionId) {
+      try { await chatService.deleteSession(currentSessionId); } catch {}
+    }
+    setCurrentSession(null);
+    setMessages([]);
+    setSelectedCategory('');
+    loadSessions();
+  };
+
+  const handleNewQuestion = () => {
+    setCurrentSession(null);
+    setMessages([]);
+    setSelectedCategory('');
+    setStreamContent('');
+  };
+
+  const handleSelectSession = useCallback((id: string) => {
+    setMessages([]);
+    setCurrentSession(id);
+    loadMessages(id);
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    setMessages([]);
+    setSelectedCategory('');
+  };
+
+  // Render identity step (when not identified)
+  if (!identified) {
     return (
-      <View style={styles.successContainer}>
-        <View style={styles.successIcon}>
-          <Text style={styles.successCheck}>✓</Text>
-        </View>
-        <Text style={styles.successTitle}>Question received!</Text>
-        <Text style={styles.successText}>We'll send your expert-reviewed answer to</Text>
-        <Text style={styles.successEmail}>{email}</Text>
-        <Text style={styles.successTime}>within 1 hour</Text>
-        <TouchableOpacity style={styles.successButton} onPress={() => { setSuccess(false); setQuestion(''); setPhoto(null); }}>
-          <Text style={styles.successButtonText}>Ask another question</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-          <Text style={styles.backHomeLink}>Back to home</Text>
-        </TouchableOpacity>
-      </View>
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.identityWrapper} keyboardShouldPersistTaps="handled">
+          <View style={styles.identityCard}>
+            <Text style={styles.identityTitle}>ExpertAsk</Text>
+            <Text style={styles.identitySubtitle}>Get instant AI answers with expert review</Text>
+
+            <View style={styles.toggle}>
+              <TouchableOpacity
+                style={[styles.toggleBtn, identifyMode === 'new' && styles.toggleActive]}
+                onPress={() => setIdentifyMode('new')}
+              >
+                <Text style={[styles.toggleText, identifyMode === 'new' && styles.toggleTextActive]}>New question</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toggleBtn, identifyMode === 'returning' && styles.toggleActive]}
+                onPress={() => setIdentifyMode('returning')}
+              >
+                <Text style={[styles.toggleText, identifyMode === 'returning' && styles.toggleTextActive]}>Return to chat</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.fieldLabel}>Your email</Text>
+            <TextInput
+              style={styles.fieldInput}
+              placeholder="you@email.com"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            {identifyMode === 'new' && (
+              <>
+                <Text style={styles.fieldLabel}>Trade category</Text>
+                <View style={styles.selectWrapper}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                    {CATEGORIES.map(cat => (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[styles.categoryChip, selectedCategory === cat && styles.categoryChipActive]}
+                        onPress={() => setSelectedCategory(cat)}
+                      >
+                        <Text style={[styles.categoryChipText, selectedCategory === cat && styles.categoryChipTextActive]}>{cat}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </>
+            )}
+
+            {identError ? <Text style={styles.errorText}>{identError}</Text> : null}
+
+            {identifyMode === 'new' ? (
+              <TouchableOpacity
+                style={[styles.actionBtn, identLoading && styles.actionBtnDisabled]}
+                onPress={handleStartSession}
+                disabled={identLoading}
+              >
+                <Text style={styles.actionBtnText}>{identLoading ? 'Starting...' : 'Start chatting →'}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.actionBtn, identLoading && styles.actionBtnDisabled]}
+                onPress={handleRetrieve}
+                disabled={identLoading}
+              >
+                <Text style={styles.actionBtnText}>{identLoading ? 'Loading...' : 'Retrieve my chats'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
+  // Render chat interface (when identified)
+  const renderMessage = ({ item }: { item: ChatMessage }) => {
+    if (item.role === 'user') {
+      return (
+        <View style={styles.msgRow}>
+          <View style={styles.userBubble}>
+            <Text style={styles.userBubbleText}>{item.content}</Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (item.role === 'system') {
+      const isReviewPrompt = item.message_type === 'review_prompt';
+      return (
+        <View style={styles.systemRow}>
+          <View style={styles.systemBubble}>
+            <Text style={styles.systemBubbleText}>{item.content}</Text>
+          </View>
+          <View style={styles.systemActions}>
+            {isReviewPrompt ? (
+              <>
+                <TouchableOpacity style={styles.systemBtn} onPress={handleContinueChatting}>
+                  <Text style={styles.systemBtnText}>Continue chatting</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.systemBtnPrimary} onPress={handleSendForReview}>
+                  <Text style={styles.systemBtnPrimaryText}>Send for expert review</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity style={styles.systemBtn} onPress={handleChangeQuestion}>
+                  <Text style={styles.systemBtnText}>Change my question</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.systemBtnPrimary} onPress={handleNewQuestion}>
+                  <Text style={styles.systemBtnPrimaryText}>New question</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    // Assistant
+    return (
+      <View style={styles.msgRowLeft}>
+        <View style={styles.assistantBubble}>
+          {item.is_expert_reviewed && (
+            <View style={styles.reviewedBadge}>
+              <Text style={styles.reviewedBadgeText}>✓ Expert reviewed</Text>
+            </View>
+          )}
+          <Text style={styles.assistantBubbleText}>{item.content}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  const renderEmptyChat = () => {
+    if (messages.length > 0) return null;
+    if (!selectedCategory) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>Select a category to start</Text>
+          <View style={styles.emptyCatGrid}>
+            {CATEGORIES.map(cat => (
+              <TouchableOpacity
+                key={cat}
+                style={styles.emptyCatPill}
+                onPress={() => selectCategoryInChat(cat)}
+              >
+                <Text style={styles.emptyCatPillText}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyText}>
+          Ask your <Text style={styles.emptyBold}>{selectedCategory}</Text> question below
+        </Text>
+      </View>
+    );
+  };
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-        <Text style={styles.backArrow}>←</Text>
-        <Text style={styles.backText}>Ask a question</Text>
-      </TouchableOpacity>
-
-      {/* Email */}
-      <Text style={styles.label}>Your email (we'll send the answer here)</Text>
-      <TextInput
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-        placeholder="your@email.com"
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-
-      {/* Category */}
-      <Text style={styles.label}>Trade category</Text>
-      <View style={styles.categoryGrid}>
-        {CATEGORIES.map(cat => (
-          <TouchableOpacity
-            key={cat}
-            style={[styles.categoryChip, category === cat && styles.categoryActive]}
-            onPress={() => setCategory(cat)}
-          >
-            <Text style={[styles.categoryText, category === cat && styles.categoryTextActive]}>
-              {cat}
-            </Text>
-          </TouchableOpacity>
-        ))}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+    >
+      {/* Header */}
+      <View style={[styles.chatHeader, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity style={styles.homeBtn} onPress={() => nav.navigate('Landing')}>
+          <Text style={styles.homeIcon}>←</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.menuBtn} onPress={() => setSidebarOpen(true)}>
+          <Text style={styles.menuIcon}>☰</Text>
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {currentSessionId
+              ? (sessions.find(s => s.id === currentSessionId)?.topic || selectedCategory || 'ExpertAsk')
+              : 'New conversation'}
+          </Text>
+          <Text style={styles.headerEmail} numberOfLines={1}>{email}</Text>
+        </View>
+        <TouchableOpacity onPress={handleLogout}>
+          <Text style={styles.changeAccountText}>Change account</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Question */}
-      <Text style={styles.label}>Your question</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        value={question}
-        onChangeText={setQuestion}
-        placeholder="Describe your question in detail..."
-        multiline
-        numberOfLines={4}
-        textAlignVertical="top"
-      />
-
-      {/* Photo */}
-      <Text style={styles.label}>Attach a photo or document (optional)</Text>
-      <TouchableOpacity style={styles.photoArea} onPress={pickImage}>
-        {photo ? (
-          <View style={styles.photoPreview}>
-            <Image source={{ uri: photo.uri }} style={styles.previewImage} />
-            <TouchableOpacity onPress={() => setPhoto(null)} style={styles.removeBtn}>
-              <Text style={styles.removeBtnText}>Remove</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.photoPlaceholder}>
-            <Text style={styles.photoIcon}>📷</Text>
-            <Text style={styles.photoText}>Tap to add a photo or PDF</Text>
-            <Text style={styles.photoSubtext}>Max 10MB</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-
-      {!photo && (
-        <TouchableOpacity style={styles.cameraButton} onPress={takePhoto}>
-          <Text style={styles.cameraButtonText}>Take a photo instead</Text>
-        </TouchableOpacity>
+      {/* Messages */}
+      {messages.length === 0 ? (
+        <View style={styles.emptyContainer}>{renderEmptyChat()}</View>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={item => String(item.id)}
+          renderItem={renderMessage}
+          contentContainerStyle={styles.messageList}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          ListFooterComponent={streaming ? <StreamingBubble content={streamContent} isStreaming /> : null}
+        />
       )}
 
-      {/* Submit */}
-      <TouchableOpacity
-        style={[styles.submitButton, submitting && styles.submitDisabled]}
-        onPress={submit}
-        disabled={submitting}
-      >
-        <Text style={styles.submitText}>{submitting ? 'Submitting...' : 'Get my answer →'}</Text>
-      </TouchableOpacity>
+      {/* Error */}
+      {chatError ? (
+        <View style={styles.chatErrorBar}>
+          <Text style={styles.chatErrorText}>{chatError}</Text>
+          <TouchableOpacity onPress={() => setChatError('')}><Text style={styles.chatErrorDismiss}>✕</Text></TouchableOpacity>
+        </View>
+      ) : null}
 
-      <Text style={styles.footerNote}>AI answers instantly · expert reviews within 1 hour</Text>
-    </ScrollView>
+      {/* File attach */}
+      <FileAttachBar onFileSelected={setFile} selectedFile={file} onClear={() => setFile(null)} />
+
+      {/* Input bar */}
+      <View style={styles.inputBar}>
+        <TextInput
+          style={styles.chatInput}
+          placeholder="Ask your trade question..."
+          value={input}
+          onChangeText={setInput}
+          multiline
+          maxLength={2000}
+          editable={!streaming}
+        />
+        <TouchableOpacity
+          style={[styles.sendBtn, (!input.trim() && !file) && styles.sendBtnDisabled]}
+          onPress={sendMessage}
+          disabled={streaming || (!input.trim() && !file)}
+        >
+          <Text style={styles.sendIcon}>↑</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Sidebar */}
+      <SessionSidebar
+        visible={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onSelectSession={handleSelectSession}
+        onNewSession={handleNewQuestion}
+      />
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 20, paddingTop: 60 },
-  backButton: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
-  backArrow: { fontSize: 20, color: '#111', marginRight: 8 },
-  backText: { fontSize: 18, fontWeight: '600', color: '#111' },
-  label: { fontSize: 14, fontWeight: '500', color: '#374151', marginBottom: 8, marginTop: 16 },
-  input: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, padding: 14, fontSize: 16, backgroundColor: '#f8fafc' },
-  textArea: { height: 110, textAlignVertical: 'top' },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  categoryChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
-  categoryActive: { backgroundColor: '#0c4a6e', borderColor: '#0c4a6e' },
-  categoryText: { fontSize: 13, color: '#374151' },
-  categoryTextActive: { color: '#fff' },
-  photoArea: { borderWidth: 2, borderStyle: 'dashed', borderColor: '#e2e8f0', borderRadius: 12, overflow: 'hidden' },
-  photoPlaceholder: { padding: 28, alignItems: 'center' },
-  photoIcon: { fontSize: 28, marginBottom: 8 },
-  photoText: { fontSize: 14, color: '#6b7280' },
-  photoSubtext: { fontSize: 12, color: '#9ca3af', marginTop: 4 },
-  photoPreview: { alignItems: 'center', padding: 12 },
-  previewImage: { width: '100%', height: 180, borderRadius: 8 },
-  removeBtn: { marginTop: 8 },
-  removeBtnText: { color: '#dc2626', fontSize: 14, fontWeight: '500' },
-  cameraButton: { marginTop: 8, alignItems: 'center' },
-  cameraButtonText: { color: '#0284c7', fontSize: 14, fontWeight: '500' },
-  submitButton: { backgroundColor: '#0c4a6e', padding: 16, borderRadius: 10, alignItems: 'center', marginTop: 24 },
-  submitDisabled: { opacity: 0.5 },
-  submitText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  footerNote: { textAlign: 'center', color: '#9ca3af', fontSize: 12, marginTop: 12 },
-  successContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: '#fff' },
-  successIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#dcfce7', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  successCheck: { fontSize: 28, color: '#16a34a' },
-  successTitle: { fontSize: 22, fontWeight: 'bold', color: '#111', marginBottom: 8 },
-  successText: { fontSize: 15, color: '#6b7280' },
-  successEmail: { fontSize: 15, fontWeight: '600', color: '#111', marginTop: 2 },
-  successTime: { fontSize: 14, color: '#6b7280', marginTop: 2, marginBottom: 24 },
-  successButton: { backgroundColor: '#0c4a6e', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
-  successButtonText: { color: '#fff', fontSize: 16, fontWeight: '500' },
-  backHomeLink: { color: '#0284c7', fontSize: 14, marginTop: 16 },
+
+  // Identity step
+  identityWrapper: { flex: 1, justifyContent: 'center', paddingHorizontal: 20 },
+  identityCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  identityTitle: { fontSize: 24, fontWeight: '700', color: '#111827', textAlign: 'center' },
+  identitySubtitle: { fontSize: 14, color: '#6b7280', textAlign: 'center', marginTop: 6, marginBottom: 24 },
+  toggle: { flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 10, padding: 3, marginBottom: 20 },
+  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  toggleActive: { backgroundColor: '#111827' },
+  toggleText: { fontSize: 14, color: '#6b7280', fontWeight: '500' },
+  toggleTextActive: { color: '#fff', fontWeight: '600' },
+  fieldLabel: { fontSize: 13, fontWeight: '500', color: '#374151', marginBottom: 6 },
+  fieldInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+    marginBottom: 16,
+    backgroundColor: '#fff',
+  },
+  selectWrapper: { marginBottom: 16 },
+  categoryScroll: { flexGrow: 0 },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    marginRight: 8,
+    backgroundColor: '#fff',
+  },
+  categoryChipActive: { backgroundColor: '#1a73e8', borderColor: '#1a73e8' },
+  categoryChipText: { fontSize: 13, color: '#374151' },
+  categoryChipTextActive: { color: '#fff', fontWeight: '600' },
+  errorText: { color: '#dc2626', fontSize: 13, marginBottom: 12, textAlign: 'center' },
+  actionBtn: { backgroundColor: '#1a73e8', paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
+  actionBtnDisabled: { opacity: 0.6 },
+  actionBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+
+  // Chat header
+  chatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    backgroundColor: '#fff',
+  },
+  homeBtn: { width: 36, height: 40, justifyContent: 'center', alignItems: 'center' },
+  homeIcon: { fontSize: 20, color: '#1a73e8', fontWeight: '600' },
+  menuBtn: { width: 36, height: 40, justifyContent: 'center', alignItems: 'center' },
+  menuIcon: { fontSize: 20, color: '#6b7280' },
+  headerCenter: { flex: 1, marginHorizontal: 8 },
+  headerTitle: { fontSize: 15, fontWeight: '600', color: '#111827' },
+  headerEmail: { fontSize: 12, color: '#9ca3af', marginTop: 1 },
+  changeAccountText: { fontSize: 12, color: '#6b7280', paddingHorizontal: 8, paddingVertical: 4 },
+
+  // Messages
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyState: { alignItems: 'center', paddingHorizontal: 24 },
+  emptyText: { fontSize: 15, color: '#6b7280', marginBottom: 16, textAlign: 'center' },
+  emptyBold: { fontWeight: '600', color: '#1a73e8' },
+  emptyCatGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  emptyCatPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  emptyCatPillText: { fontSize: 13, color: '#374151' },
+
+  messageList: { paddingVertical: 16, paddingHorizontal: 12 },
+  msgRow: { alignItems: 'flex-end', marginVertical: 4 },
+  msgRowLeft: { alignItems: 'flex-start', marginVertical: 4 },
+  userBubble: {
+    backgroundColor: '#1a73e8',
+    borderRadius: 18,
+    borderBottomRightRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    maxWidth: '80%',
+  },
+  userBubbleText: { fontSize: 15, color: '#fff', lineHeight: 21 },
+  assistantBubble: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    maxWidth: '80%',
+  },
+  assistantBubbleText: { fontSize: 15, color: '#1f2937', lineHeight: 21 },
+  reviewedBadge: { marginBottom: 4 },
+  reviewedBadgeText: { fontSize: 11, color: '#16a34a', fontWeight: '600', backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
+
+  // System messages
+  systemRow: { alignItems: 'center', marginVertical: 12 },
+  systemBubble: {
+    backgroundColor: '#fefce8',
+    borderWidth: 1,
+    borderColor: '#fef08a',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    maxWidth: '90%',
+  },
+  systemBubbleText: { fontSize: 13, color: '#6b7280', textAlign: 'center', lineHeight: 18 },
+  systemActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  systemBtn: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  systemBtnText: { fontSize: 12, color: '#4b5563' },
+  systemBtnPrimary: {
+    backgroundColor: '#1a73e8',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  systemBtnPrimaryText: { fontSize: 12, color: '#fff', fontWeight: '500' },
+
+  // Error bar
+  chatErrorBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#fecaca',
+  },
+  chatErrorText: { flex: 1, fontSize: 13, color: '#dc2626' },
+  chatErrorDismiss: { fontSize: 16, color: '#999', paddingLeft: 8 },
+
+  // Input bar
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    backgroundColor: '#fff',
+    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+  },
+  chatInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 15,
+    maxHeight: 100,
+    backgroundColor: '#fff',
+  },
+  sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#1a73e8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  sendBtnDisabled: { backgroundColor: '#d1d5db' },
+  sendIcon: { color: '#fff', fontSize: 20, fontWeight: '700' },
 });

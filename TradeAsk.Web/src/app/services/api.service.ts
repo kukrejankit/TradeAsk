@@ -11,7 +11,7 @@ export interface Question {
   question_text: string;
   file_path: string | null;
   file_type: string | null;
-  status: 'pending' | 'answered' | 'escalated';
+  status: 'pending' | 'answered' | 'escalated' | 'expert_review';
   claude_answer: string | null;
   final_answer: string | null;
   correction_needed: boolean;
@@ -79,6 +79,10 @@ export class ApiService {
 
   escalateQuestion(id: number): Observable<any> {
     return this.http.put(`${this.baseUrl}/admin/questions/${id}/escalate`, {});
+  }
+
+  routeToExpert(id: number): Observable<any> {
+    return this.http.put(`${this.baseUrl}/admin/questions/${id}/route-to-expert`, {});
   }
 
   getStats(): Observable<AdminStats> {

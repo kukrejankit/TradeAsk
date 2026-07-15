@@ -1,7 +1,7 @@
 import { Component, signal, OnInit, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SlicePipe } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ChatService, ChatSession, ChatMessage } from '../../services/chat.service';
 
 interface DisplayMessage {
@@ -15,7 +15,7 @@ interface DisplayMessage {
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [FormsModule, SlicePipe],
+  imports: [FormsModule, SlicePipe, RouterLink],
   templateUrl: './chat.html',
 })
 export class Chat implements OnInit, AfterViewChecked {
@@ -39,12 +39,13 @@ export class Chat implements OnInit, AfterViewChecked {
   error = signal('');
 
   categories = [
-    'Electrical',
-    'Plumbing',
-    'Structural / Building',
-    'HVAC / Mechanical',
-    'OSHA & Safety',
-    'General Construction',
+    'Technology & IT',
+    'Legal & Compliance',
+    'Finance & Tax',
+    'Health & Medical',
+    'Engineering & Construction',
+    'Science & Research',
+    'Business & Strategy',
     'Other',
   ];
 
@@ -82,13 +83,8 @@ export class Chat implements OnInit, AfterViewChecked {
       this.error.set('Please enter a valid email address.');
       return;
     }
-    if (!this.selectedCategory()) {
-      this.error.set('Please select a category.');
-      return;
-    }
-
     try {
-      const { sessionId } = await this.chatService.createSession(this.userEmail(), this.selectedCategory());
+      const { sessionId } = await this.chatService.createSession(this.userEmail(), this.selectedCategory() || 'General');
       this.currentSessionId.set(sessionId);
       this.isIdentified.set(true);
       this.messages.set([]);
@@ -144,12 +140,8 @@ export class Chat implements OnInit, AfterViewChecked {
 
     // If no session yet, create one first
     if (!this.currentSessionId()) {
-      if (!this.selectedCategory()) {
-        this.error.set('Please select a category first.');
-        return;
-      }
       try {
-        const { sessionId } = await this.chatService.createSession(this.userEmail(), this.selectedCategory());
+        const { sessionId } = await this.chatService.createSession(this.userEmail(), this.selectedCategory() || 'General');
         this.currentSessionId.set(sessionId);
         this.loadSessions();
       } catch {
@@ -186,7 +178,7 @@ export class Chat implements OnInit, AfterViewChecked {
               type: 'clarification',
             }]);
           } else {
-            // Real answer — show with review note
+            // Real answer — ask user if they want to continue or send for review
             this.messages.update(msgs => [...msgs, {
               role: 'assistant',
               content: responseContent,
@@ -194,8 +186,8 @@ export class Chat implements OnInit, AfterViewChecked {
             }]);
             this.messages.update(msgs => [...msgs, {
               role: 'system',
-              content: event.data.reviewNote,
-              type: 'system',
+              content: 'Would you like to continue chatting, or send this answer for expert review?',
+              type: 'review_prompt',
             }]);
           }
         } else if (event.type === 'error') {
@@ -222,6 +214,18 @@ export class Chat implements OnInit, AfterViewChecked {
 
   hasAnswer(): boolean {
     return this.messages().some(m => m.type === 'answer');
+  }
+
+  continueChatting() {
+    this.messages.update(msgs => msgs.filter(m => m.type !== 'review_prompt'));
+  }
+
+  sendForReview() {
+    this.messages.update(msgs => msgs.map(m =>
+      m.type === 'review_prompt'
+        ? { ...m, content: 'Your answer has been sent for expert review. You\'ll receive an email once reviewed.', type: 'system' }
+        : m
+    ));
   }
 
   async changeQuestion() {

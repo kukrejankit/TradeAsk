@@ -162,6 +162,12 @@ function initSchema() {
   if (!colNames.includes('role')) {
     db.exec("ALTER TABLE admin_users ADD COLUMN role TEXT DEFAULT 'expert'");
   }
+  if (!colNames.includes('reset_token')) {
+    db.exec("ALTER TABLE admin_users ADD COLUMN reset_token TEXT");
+  }
+  if (!colNames.includes('reset_token_expiry')) {
+    db.exec("ALTER TABLE admin_users ADD COLUMN reset_token_expiry TEXT");
+  }
 
   // Migrate chat_sessions for topic
   const sessionCols = db.prepare("PRAGMA table_info(chat_sessions)").all() as any[];
@@ -178,6 +184,47 @@ function initSchema() {
   }
   if (!qColNames.includes('chat_message_id')) {
     db.exec("ALTER TABLE questions ADD COLUMN chat_message_id INTEGER NULL");
+  }
+
+  // Migrate questions status to support 'expert_review' (recreate without restrictive CHECK)
+  try {
+    const checkInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='questions'").get() as any;
+    if (checkInfo?.sql && !checkInfo.sql.includes('expert_review')) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS questions_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT DEFAULT (datetime('now')),
+          user_email TEXT NOT NULL,
+          category TEXT NOT NULL,
+          question_text TEXT NOT NULL,
+          file_path TEXT NULL,
+          file_type TEXT NULL,
+          status TEXT DEFAULT 'pending',
+          claude_answer TEXT NULL,
+          final_answer TEXT NULL,
+          correction_needed INTEGER DEFAULT 0,
+          correction_notes TEXT NULL,
+          added_to_kb INTEGER DEFAULT 0,
+          answered_at TEXT NULL,
+          email_sent INTEGER DEFAULT 0,
+          session_id TEXT NULL,
+          chat_message_id INTEGER NULL
+        );
+        INSERT INTO questions_new SELECT * FROM questions;
+        DROP TABLE questions;
+        ALTER TABLE questions_new RENAME TO questions;
+      `);
+    }
+  } catch (migErr) {
+    // Table may already be migrated or empty
+  }
+
+  // Ensure default admin exists
+  const bcrypt = require('bcryptjs');
+  const adminExists = db.prepare("SELECT id FROM admin_users WHERE email = ?").get('ankit.kukreja.89@gmail.com');
+  if (!adminExists) {
+    const hash = bcrypt.hashSync('TradeAsk2024!', 10);
+    db.prepare("INSERT INTO admin_users (email, password_hash, name, status, role) VALUES (?, ?, ?, ?, ?)").run('ankit.kukreja.89@gmail.com', hash, 'Admin', 'approved', 'super_admin');
   }
 }
 

@@ -13,3 +13,5 @@ TradeAsk.Mobile/.expo/
 *.onnx
 *.db-shm
 *.db-wal
+
+.vercel

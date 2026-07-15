@@ -1,5 +1,6 @@
 import { Component, signal, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ApiService, Question, AdminStats } from '../../services/api.service';
 import { environment } from '../../../environments/environment';
 
@@ -41,14 +42,23 @@ export class AdminDashboard implements OnInit {
   correctionNotes = signal('');
   addedToKb = signal(false);
 
-  constructor(private api: ApiService) {}
+  isAdminRoute = signal(false);
+
+  constructor(private api: ApiService, private router: Router) {}
 
   ngOnInit() {
+    this.isAdminRoute.set(this.router.url === '/admin' || this.router.url.startsWith('/admin/'));
     const token = localStorage.getItem('tradeask_token');
     if (token) {
       this.isLoggedIn.set(true);
       this.userRole.set(localStorage.getItem('tradeask_role') || 'expert');
-      this.loadData();
+      if (this.isAdminRoute() && this.userRole() !== 'super_admin') {
+        this.isLoggedIn.set(false);
+        localStorage.removeItem('tradeask_token');
+        localStorage.removeItem('tradeask_role');
+      } else {
+        this.loadData();
+      }
     }
   }
 
@@ -150,6 +160,10 @@ export class AdminDashboard implements OnInit {
     this.loginError.set('');
     this.api.login(this.loginEmail(), this.loginPassword()).subscribe({
       next: (res: any) => {
+        if (this.isAdminRoute() && res.role !== 'super_admin') {
+          this.loginError.set('Admin access only. Experts should use /expert to sign in.');
+          return;
+        }
         localStorage.setItem('tradeask_token', res.token);
         localStorage.setItem('tradeask_role', res.role || 'expert');
         this.userRole.set(res.role || 'expert');
@@ -164,7 +178,10 @@ export class AdminDashboard implements OnInit {
 
   logout() {
     localStorage.removeItem('tradeask_token');
+    localStorage.removeItem('tradeask_role');
     this.isLoggedIn.set(false);
+    this.activeTab.set('questions');
+    this.experts.set([]);
   }
 
   loadData() {
@@ -226,6 +243,19 @@ export class AdminDashboard implements OnInit {
         this.loadData();
       },
       error: (err) => this.showToast(err.error?.error || 'Escalate failed'),
+    });
+  }
+
+  routeToExpert() {
+    const q = this.selectedQuestion();
+    if (!q) return;
+    this.api.routeToExpert(q.id).subscribe({
+      next: () => {
+        this.showToast('Question sent to expert review');
+        this.selectedQuestion.set(null);
+        this.loadData();
+      },
+      error: (err) => this.showToast(err.error?.error || 'Failed to route'),
     });
   }
 

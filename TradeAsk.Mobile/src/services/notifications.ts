@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { api } from './api';
+import { API_URL } from './config';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -28,6 +28,13 @@ export async function registerForPushNotifications(): Promise<string | null> {
   const tokenData = await Notifications.getExpoPushTokenAsync();
   const token = tokenData.data;
 
-  await api.savePushToken(token, Platform.OS);
+  try {
+    await fetch(`${API_URL}/push-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, platform: Platform.OS }),
+    });
+  } catch {}
+
   return token;
 }

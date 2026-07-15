@@ -5,6 +5,7 @@ export const routes: Routes = [
   { path: 'ask', loadComponent: () => import('./components/chat/chat').then(m => m.Chat) },
   { path: 'chat/:sessionId', loadComponent: () => import('./components/chat/chat').then(m => m.Chat) },
   { path: 'expert', loadComponent: () => import('./components/public-questions/public-questions').then(m => m.PublicQuestions) },
+  { path: 'expert/login', loadComponent: () => import('./components/admin-dashboard/admin-dashboard').then(m => m.AdminDashboard) },
   { path: 'admin', loadComponent: () => import('./components/admin-dashboard/admin-dashboard').then(m => m.AdminDashboard) },
   { path: 'admin/documents', loadComponent: () => import('./components/document-manager/document-manager').then(m => m.DocumentManager) },
   { path: 'privacy', loadComponent: () => import('./components/privacy/privacy').then(m => m.Privacy) },
